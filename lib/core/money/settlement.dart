@@ -35,9 +35,15 @@ Map<Currency, Map<String, int>> computeBalances(
   Iterable<ExpenseEntry> expenses,
 ) {
   final known = memberIds.toSet();
+  if (known.length != memberIds.length) {
+    throw ArgumentError.value(memberIds, 'memberIds', '중복된 멤버가 있다');
+  }
   final balances = <Currency, Map<String, int>>{};
 
   for (final e in expenses) {
+    if (e.amount <= 0 || e.shares.values.any((s) => s < 0)) {
+      throw ArgumentError('지출 금액은 0보다 크고 부담액은 0 이상이어야 한다');
+    }
     final shareTotal = e.shares.values.fold(0, (a, b) => a + b);
     if (shareTotal != e.amount) {
       throw ArgumentError('부담액 합계($shareTotal)가 지출 금액(${e.amount})과 다르다');
@@ -70,8 +76,8 @@ Map<String, Decimal> toKrwBalances(
   final result = {for (final id in memberIds) id: Decimal.zero};
   for (final MapEntry(key: currency, value: byMember) in balances.entries) {
     final rate = currency == Currency.krw ? Decimal.one : krwRates[currency];
-    if (rate == null) {
-      throw ArgumentError('${currency.code} 환율이 없다');
+    if (rate == null || rate <= Decimal.zero) {
+      throw ArgumentError('${currency.code} 환율이 없거나 0 이하다: $rate');
     }
     for (final MapEntry(key: id, value: amount) in byMember.entries) {
       result.update(id, (v) => v + currency.toMajor(amount) * rate);
@@ -85,7 +91,12 @@ Map<String, Decimal> toKrwBalances(
 /// 매번 가장 많이 받을 사람과 가장 많이 줄 사람을 짝지어 둘 중 작은 금액만큼 보낸다.
 /// 금액이 같으면 [krwBalances]의 순서(멤버 순서)가 앞선 사람이 먼저다.
 /// 각 송금액만 마지막에 10원 단위로 반올림하고(5원 이상 올림), 0원이 되면 뺀다.
+/// [krwBalances]의 합계는 0이어야 한다 (반올림하지 않은 값을 넣는다).
 List<Transfer> settle(Map<String, Decimal> krwBalances) {
+  final total = krwBalances.values.fold(Decimal.zero, (a, b) => a + b);
+  if (total != Decimal.zero) {
+    throw ArgumentError('잔액 합계가 0이 아니다: $total');
+  }
   final creditors = [
     for (final e in krwBalances.entries)
       if (e.value > Decimal.zero) _Party(e.key, e.value),
