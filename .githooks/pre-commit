@@ -1,0 +1,13 @@
+#!/bin/sh
+# 커밋하려는 변경에 API 키 같은 비밀정보가 섞여 있으면 커밋을 막는다.
+# 설치: git config core.hooksPath .githooks
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks가 없어 커밋을 막았습니다. 'brew install gitleaks' 후 다시 커밋하세요." >&2
+  exit 1
+fi
+
+if ! gitleaks git --staged --redact --no-banner; then
+  echo "pre-commit: 비밀정보로 보이는 값이 있어 커밋을 막았습니다. 위 내용을 확인하고 env/*.json 으로 옮기세요." >&2
+  exit 1
+fi

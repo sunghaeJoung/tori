@@ -1,0 +1,12 @@
+#!/bin/sh
+# main 브랜치로 직접 push하는 것을 막는다. main은 develop → main PR로만 바꾼다.
+# 설치: git config core.hooksPath .githooks
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "pre-push: main으로 직접 push할 수 없습니다. 작업 브랜치를 push하고 develop 대상 PR을 만드세요." >&2
+    exit 1
+  fi
+done
+
+exit 0
