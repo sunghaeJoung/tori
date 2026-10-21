@@ -51,9 +51,9 @@ Map<Currency, Map<String, int>> computeBalances(
       e.currency,
       () => {for (final id in memberIds) id: 0},
     );
-    byMember[e.paidBy] = byMember[e.paidBy]! + e.amount;
+    byMember.update(e.paidBy, (v) => v + e.amount);
     for (final MapEntry(key: id, value: share) in e.shares.entries) {
-      byMember[id] = byMember[id]! - share;
+      byMember.update(id, (v) => v - share);
     }
   }
   return balances;
@@ -74,8 +74,7 @@ Map<String, Decimal> toKrwBalances(
       throw ArgumentError('${currency.code} 환율이 없다');
     }
     for (final MapEntry(key: id, value: amount) in byMember.entries) {
-      final major = Decimal.fromInt(amount).shift(-currency.decimals);
-      result[id] = result[id]! + major * rate;
+      result.update(id, (v) => v + currency.toMajor(amount) * rate);
     }
   }
   return result;
