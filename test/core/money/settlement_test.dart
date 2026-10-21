@@ -6,34 +6,46 @@ import 'package:tori/core/money/split.dart';
 
 Decimal d(String s) => Decimal.parse(s);
 
-void main() {
-  group('development.md 3-5 예시: 4명 중국 여행 (1위안 = 192.35원)', () {
-    const members = ['민지', '수아', '지훈', '하린'];
+/// [among]에게 균등하게 나눈 지출.
+ExpenseEntry even(
+  String paidBy,
+  int amount,
+  Currency currency,
+  List<String> among,
+) => ExpenseEntry(
+  paidBy: paidBy,
+  amount: amount,
+  currency: currency,
+  shares: splitEvenly(amount, among),
+);
 
-    ExpenseEntry expense(
-      String paidBy,
-      int amount,
-      Currency currency, [
-      List<String> splitAmong = members,
-    ]) => ExpenseEntry(
+/// 부담액을 직접 정한 원화 지출.
+ExpenseEntry krw(String paidBy, int amount, Map<String, int> shares) =>
+    ExpenseEntry(
       paidBy: paidBy,
       amount: amount,
-      currency: currency,
-      shares: splitEvenly(amount, splitAmong),
+      currency: Currency.krw,
+      shares: shares,
     );
 
-    final expenses = [
-      expense('수아', 1200000, Currency.krw), // 항공권
-      expense('민지', 68000, Currency.cny), // 훠궈 저녁
-      expense('지훈', 5850, Currency.cny), // 디디 택시
-      expense('하린', 480000, Currency.cny), // 호텔 2박
-      expense('지훈', 9600, Currency.cny, ['민지', '지훈', '하린']), // 맥주
-      expense('수아', 4500, Currency.cny), // 밀크티
-      expense('민지', 48000, Currency.cny), // 와이탄 크루즈
-    ];
+void main() {
+  group('development.md 3-5 예시: 4명 중국 여행 (1위안 = 192.35원)', () {
+    const all = ['민지', '수아', '지훈', '하린'];
+
+    final balances = computeBalances(all, [
+      even('수아', 1200000, Currency.krw, all), // 항공권
+      even('민지', 68000, Currency.cny, all), // 훠궈 저녁
+      even('지훈', 5850, Currency.cny, all), // 디디 택시
+      even('하린', 480000, Currency.cny, all), // 호텔 2박
+      even('지훈', 9600, Currency.cny, ['민지', '지훈', '하린']), // 맥주
+      even('수아', 4500, Currency.cny, all), // 밀크티
+      even('민지', 48000, Currency.cny, all), // 와이탄 크루즈
+    ]);
+    final krwBalances = toKrwBalances(all, balances, {
+      Currency.cny: d('192.35'),
+    });
 
     test('통화별 잔액', () {
-      final balances = computeBalances(members, expenses);
       expect(balances[Currency.cny], {
         '민지': -38788,
         '수아': -147088,
@@ -49,23 +61,17 @@ void main() {
     });
 
     test('원화 환산은 반올림하지 않는다', () {
-      final krw = toKrwBalances(members, computeBalances(members, expenses), {
-        Currency.cny: d('192.35'),
-      });
-      expect(krw, {
+      expect(krwBalances, {
         '민지': d('-374608.718'),
         '수아': d('617076.232'),
         '지훈': d('-568014.7195'),
         '하린': d('325547.2055'),
       });
-      expect(krw.values.reduce((a, b) => a + b), Decimal.zero);
+      expect(krwBalances.values.reduce((a, b) => a + b), Decimal.zero);
     });
 
     test('송금 3건: 568,010 / 325,550 / 49,060원', () {
-      final krw = toKrwBalances(members, computeBalances(members, expenses), {
-        Currency.cny: d('192.35'),
-      });
-      expect(settle(krw), [
+      expect(settle(krwBalances), [
         (from: '지훈', to: '수아', amountKrw: 568010),
         (from: '민지', to: '하린', amountKrw: 325550),
         (from: '민지', to: '수아', amountKrw: 49060),
@@ -74,77 +80,42 @@ void main() {
   });
 
   group('computeBalances', () {
+    const abc = ['a', 'b', 'c'];
+
     test('통화별 잔액 합계는 0', () {
-      final balances = computeBalances(
-        ['a', 'b', 'c'],
-        [
-          ExpenseEntry(
-            paidBy: 'a',
-            amount: 1000,
-            currency: Currency.jpy,
-            shares: splitEvenly(1000, ['a', 'b', 'c']),
-          ),
-          ExpenseEntry(
-            paidBy: 'c',
-            amount: 777,
-            currency: Currency.jpy,
-            shares: splitEvenly(777, ['b', 'c']),
-          ),
-        ],
-      );
+      final balances = computeBalances(abc, [
+        even('a', 1000, Currency.jpy, abc),
+        even('c', 777, Currency.jpy, ['b', 'c']),
+      ]);
       expect(balances.keys, [Currency.jpy]);
       expect(balances[Currency.jpy]!.values.reduce((a, b) => a + b), 0);
     });
 
     test('지출이 없는 멤버도 0으로 들어간다', () {
-      final balances = computeBalances(
-        ['a', 'b', 'c'],
-        [
-          const ExpenseEntry(
-            paidBy: 'a',
-            amount: 100,
-            currency: Currency.krw,
-            shares: {'a': 50, 'b': 50},
-          ),
-        ],
-      );
+      final balances = computeBalances(abc, [
+        krw('a', 100, {'a': 50, 'b': 50}),
+      ]);
       expect(balances[Currency.krw], {'a': 50, 'b': -50, 'c': 0});
     });
 
     test('지출이 없으면 빈 결과', () {
-      expect(computeBalances(['a', 'b'], []), isEmpty);
+      expect(computeBalances(abc, []), isEmpty);
     });
 
     test('부담액 합계가 지출 금액과 다르면 거부한다', () {
       expect(
-        () => computeBalances(
-          ['a', 'b'],
-          [
-            const ExpenseEntry(
-              paidBy: 'a',
-              amount: 100,
-              currency: Currency.krw,
-              shares: {'a': 50, 'b': 49},
-            ),
-          ],
-        ),
+        () => computeBalances(abc, [
+          krw('a', 100, {'a': 50, 'b': 49}),
+        ]),
         throwsArgumentError,
       );
     });
 
     test('멤버 목록에 없는 id는 거부한다', () {
       expect(
-        () => computeBalances(
-          ['a', 'b'],
-          [
-            const ExpenseEntry(
-              paidBy: 'x',
-              amount: 100,
-              currency: Currency.krw,
-              shares: {'a': 50, 'b': 50},
-            ),
-          ],
-        ),
+        () => computeBalances(abc, [
+          krw('x', 100, {'a': 50, 'b': 50}),
+        ]),
         throwsArgumentError,
       );
     });
