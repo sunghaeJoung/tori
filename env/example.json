@@ -1,0 +1,4 @@
+{
+  "SUPABASE_URL": "https://<project-ref>.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "<publishable(anon) key — 공개용 키만. service_role/secret 키는 절대 넣지 말 것>"
+}
