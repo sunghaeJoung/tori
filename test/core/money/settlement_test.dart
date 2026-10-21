@@ -111,6 +111,25 @@ void main() {
       );
     });
 
+    test('금액이 0 이하이거나 부담액이 음수면 거부한다', () {
+      expect(
+        () => computeBalances(abc, [
+          krw('a', 100, {'a': 150, 'b': -50}),
+        ]),
+        throwsArgumentError,
+      );
+      expect(
+        () => computeBalances(abc, [
+          krw('a', -100, {'a': -100}),
+        ]),
+        throwsArgumentError,
+      );
+    });
+
+    test('멤버 목록에 중복이 있으면 거부한다', () {
+      expect(() => computeBalances(['a', 'a', 'b'], []), throwsArgumentError);
+    });
+
     test('멤버 목록에 없는 id는 거부한다', () {
       expect(
         () => computeBalances(abc, [
@@ -122,17 +141,24 @@ void main() {
   });
 
   group('toKrwBalances', () {
-    test('환율이 없으면 거부한다', () {
-      expect(
-        () => toKrwBalances(
-          ['a', 'b'],
-          {
-            Currency.usd: {'a': 100, 'b': -100},
-          },
-          {},
-        ),
-        throwsArgumentError,
-      );
+    test('환율이 없거나 0 이하면 거부한다', () {
+      for (final rates in [
+        <Currency, Decimal>{},
+        {Currency.usd: Decimal.zero},
+        {Currency.usd: d('-1380.5')},
+      ]) {
+        expect(
+          () => toKrwBalances(
+            ['a', 'b'],
+            {
+              Currency.usd: {'a': 100, 'b': -100},
+            },
+            rates,
+          ),
+          throwsArgumentError,
+          reason: '$rates',
+        );
+      }
     });
 
     test('원화만 있으면 환율 없이 그대로', () {
@@ -164,11 +190,18 @@ void main() {
   });
 
   group('settle', () {
+    test('잔액 합계가 0이 아니면 거부한다', () {
+      expect(
+        () => settle({'a': d('-374608.72'), 'b': d('374608.71')}),
+        throwsArgumentError,
+      );
+    });
+
     test('모두 0이면 송금 없음', () {
       expect(settle({'a': Decimal.zero, 'b': Decimal.zero}), isEmpty);
     });
 
-    test('송금 건수는 최대 (인원 - 1)', () {
+    test('가장 큰 사람끼리 짝짓고, 송금 건수는 (인원 - 1) 이하', () {
       final transfers = settle({
         'a': d('-100'),
         'b': d('-200'),
@@ -176,8 +209,12 @@ void main() {
         'd': d('250'),
         'e': d('350'),
       });
-      expect(transfers.length, lessThanOrEqualTo(4));
-      expect(transfers.fold(0, (s, t) => s + t.amountKrw), 600);
+      expect(transfers, [
+        (from: 'c', to: 'e', amountKrw: 300),
+        (from: 'b', to: 'd', amountKrw: 200),
+        (from: 'a', to: 'd', amountKrw: 50),
+        (from: 'a', to: 'e', amountKrw: 50),
+      ]);
     });
 
     test('10원 단위 반올림: 5원 이상 올림, 4원 이하 버림', () {
