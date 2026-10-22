@@ -275,16 +275,26 @@ create policy "멤버는 송금 완료를 체크한다" on public.settlements
   using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 
--- 고칠 수 있는 열만 열어둔다 (초대 코드·만든 사람·소속 여행은 못 바꾼다)
-revoke update on public.trips from anon, authenticated;
+-- 테이블 권한: 프로젝트의 "새 테이블 자동 노출" 설정과 상관없이 같게 동작하도록
+-- 모두 거둔 뒤, 로그인한 사용자(authenticated)에게 필요한 것만 준다. anon(로그인 전)은 아무것도 못 한다.
+-- 고칠 수 있는 열만 열어둔다 (초대 코드·만든 사람·소속 여행은 못 바꾼다).
+revoke all on
+  public.trips, public.members, public.expenses, public.expense_splits, public.settlements
+from anon, authenticated;
+
+grant select on public.trips to authenticated;
 grant update (name, start_date, end_date, settle_rate, settle_rate_date, settled_at)
   on public.trips to authenticated;
 
-revoke update on public.expenses from anon, authenticated;
+grant select on public.members to authenticated;
+
+grant select, insert, delete on public.expenses to authenticated;
 grant update (title, amount, currency, paid_by, category, spent_at)
   on public.expenses to authenticated;
 
-revoke update on public.settlements from anon, authenticated;
+grant select, insert, update, delete on public.expense_splits to authenticated;
+
+grant select on public.settlements to authenticated;
 grant update (done_at) on public.settlements to authenticated;
 
 -- ─────────────────────────────────────────────
