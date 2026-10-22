@@ -80,15 +80,20 @@ final fakeUser = User(
   isAnonymous: true,
 );
 
+/// 테스트의 "오늘". sampleTrip(11/6~11/9)이 진행 중인 날.
+final testToday = DateTime(2026, 11, 7, 15, 30);
+
 TripSummary sampleTrip({
   String id = 't1',
   String name = '상하이 우정여행',
+  DateTime? start,
+  DateTime? end,
   bool settled = false,
 }) => TripSummary(
   id: id,
   name: name,
-  startDate: DateTime(2026, 11, 6),
-  endDate: DateTime(2026, 11, 9),
+  startDate: start ?? DateTime(2026, 11, 6),
+  endDate: end ?? DateTime(2026, 11, 9),
   currency: Currency.cny,
   memberCount: 4,
   settled: settled,
@@ -109,6 +114,7 @@ Future<void> pumpApp(
       nicknameProvider.overrideWith(() => FakeNickname(nickname)),
       authUserProvider.overrideWith((ref) => fakeUser),
       tripsRepositoryProvider.overrideWithValue(repo),
+      todayProvider.overrideWithValue(testToday),
       ...overrides,
     ],
   );

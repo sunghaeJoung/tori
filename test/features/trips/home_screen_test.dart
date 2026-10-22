@@ -9,24 +9,68 @@ void main() {
     expect(find.text('아직 여행이 없어요'), findsOneWidget);
   });
 
-  testWidgets('진행 중인 여행과 지난 여행을 나눠 보여준다', (tester) async {
+  testWidgets('진행 중 · 다가오는 · 지난 여행으로 나눠 보여준다', (tester) async {
+    // 카드 5개가 한 화면에 다 그려지도록 화면을 길게
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    // 오늘은 2026-11-07
     await pumpApp(
       tester,
       repository: FakeTripsRepository(
         trips: [
-          sampleTrip(),
-          sampleTrip(id: 't0', name: '제주 겨울여행', settled: true),
+          sampleTrip(
+            id: 'a',
+            name: '제주',
+            start: DateTime(2026, 2, 14),
+            end: DateTime(2026, 2, 16),
+            settled: true,
+          ),
+          sampleTrip(
+            id: 'b',
+            name: '도쿄',
+            start: DateTime(2026, 11, 20),
+            end: DateTime(2026, 11, 22),
+          ),
+          sampleTrip(
+            id: 'c',
+            name: '부산',
+            start: DateTime(2026, 11, 1),
+            end: DateTime(2026, 11, 3),
+          ),
+          sampleTrip(id: 'd', name: '상하이'),
+          sampleTrip(
+            id: 'e',
+            name: '내일 출발',
+            start: DateTime(2026, 11, 8),
+            end: DateTime(2026, 11, 8),
+          ),
         ],
       ),
     );
 
-    expect(find.text('진행 중인 여행'), findsOneWidget);
-    expect(find.text('지난 여행'), findsOneWidget);
-    expect(find.text('상하이 우정여행'), findsOneWidget);
-    expect(find.text('CNY 위안화'), findsNWidgets(2));
-    expect(find.text('2026.11.06 – 11.09 · 4명'), findsNWidgets(2));
+    // 화면 위에서부터의 순서
+    final order = [
+      '진행 중인 여행',
+      '상하이',
+      '다가오는 여행',
+      '내일 출발',
+      '도쿄',
+      '지난 여행',
+      '부산',
+      '제주',
+    ];
+    final ys = [for (final t in order) tester.getTopLeft(find.text(t)).dy];
+    expect(ys, orderedEquals([...ys]..sort()));
+
     expect(find.text('여행 중'), findsOneWidget);
+    expect(find.text('D-1'), findsOneWidget);
+    expect(find.text('D-13'), findsOneWidget);
+    expect(find.text('정산 전'), findsOneWidget);
     expect(find.text('정산 완료'), findsOneWidget);
+    expect(find.text('CNY 위안화'), findsNWidgets(5));
+    expect(find.text('2026.11.06 – 11.09 · 4명'), findsOneWidget);
     expect(find.text('민'), findsOneWidget); // 내 이름 첫 글자
   });
 
