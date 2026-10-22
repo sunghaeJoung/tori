@@ -23,6 +23,7 @@ class SelectableCard extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
+      enabled: onTap != null,
       child: Material(
         color: selected ? ToriColors.accentSoft : ToriColors.surface,
         shape: RoundedRectangleBorder(

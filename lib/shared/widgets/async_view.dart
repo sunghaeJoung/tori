@@ -12,9 +12,13 @@ class AsyncView<T> extends StatelessWidget {
     required this.value,
     required this.data,
     required this.onRetry,
+    this.errorTitle = '불러오지 못했어요',
   });
 
   final AsyncValue<T> value;
+
+  /// 실패했을 때 제목 (예: '여행을 불러오지 못했어요')
+  final String errorTitle;
   final Widget Function(T data) data;
   final VoidCallback onRetry;
 
@@ -25,7 +29,7 @@ class AsyncView<T> extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
     return EmptyState(
-      title: '불러오지 못했어요',
+      title: errorTitle,
       message: '인터넷 연결을 확인해 주세요',
       action: FilledButton.tonal(
         onPressed: onRetry,

@@ -58,6 +58,7 @@ class HomeScreen extends ConsumerWidget {
       body: AsyncView(
         value: trips,
         onRetry: () => ref.read(tripActionsProvider).reloadTrips(),
+        errorTitle: '여행을 불러오지 못했어요',
         data: (trips) => trips.isEmpty
             ? const EmptyState(
                 title: '아직 여행이 없어요',

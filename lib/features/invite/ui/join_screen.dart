@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
@@ -24,10 +25,11 @@ class JoinScreen extends ConsumerStatefulWidget {
 }
 
 class _JoinScreenState extends ConsumerState<JoinScreen> {
-  PreviewMember? _picked;
+  String? _pickedId;
   var _joining = false;
 
   Future<void> _join(PreviewMember member) async {
+    if (_joining) return;
     setState(() => _joining = true);
     try {
       final tripId = await ref
@@ -37,9 +39,21 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     } catch (e) {
       debugPrint('입장 실패: $e');
       if (!mounted) return;
+      // claim_member가 '초대 코드나 멤버가 맞지 않다'(no_data_found)로 거절한 경우
+      final changed = e is PostgrestException && e.code == 'P0002';
+      if (changed) {
+        _pickedId = null;
+        ref.invalidate(tripPreviewProvider(widget.code));
+      }
       setState(() => _joining = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('들어가지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요')),
+        SnackBar(
+          content: Text(
+            changed
+                ? '여행 정보가 바뀌었어요. 이름을 다시 골라주세요'
+                : '들어가지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요',
+          ),
+        ),
       );
     }
   }
@@ -48,14 +62,18 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   Widget build(BuildContext context) {
     final preview = ref.watch(tripPreviewProvider(widget.code));
     final trip = preview.value;
-    // 이미 이 브라우저로 들어온 적 있으면 그 이름을 골라 둔다
-    final picked = _picked ?? trip?.members.where((m) => m.isMe).firstOrNull;
+    // 고른 이름은 id로 들고 있다가 최신 미리보기에서 다시 찾는다 (누가 들어왔는지 바뀔 수 있음).
+    // 아직 안 골랐으면 이 브라우저로 들어온 적 있는 이름을 골라 둔다.
+    final picked = trip?.members
+        .where((m) => _pickedId == null ? m.isMe : m.id == _pickedId)
+        .firstOrNull;
 
     return Scaffold(
       body: SafeArea(
         child: AsyncView(
           value: preview,
           onRetry: () => ref.invalidate(tripPreviewProvider(widget.code)),
+          errorTitle: '초대받은 여행을 불러오지 못했어요',
           data: (trip) => trip == null
               ? EmptyState(
                   title: '초대 코드를 찾을 수 없어요',
@@ -116,7 +134,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                   selected: member.id == picked?.id,
                   onTap: _joining
                       ? null
-                      : () => setState(() => _picked = member),
+                      : () => setState(() => _pickedId = member.id),
                 ),
             ],
           ),

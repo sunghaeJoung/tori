@@ -37,6 +37,7 @@ class InviteScreen extends ConsumerWidget {
       body: AsyncView(
         value: trip,
         onRetry: () => ref.invalidate(tripDetailProvider(tripId)),
+        errorTitle: '여행을 불러오지 못했어요',
         data: (trip) => _InviteBody(trip: trip),
       ),
       bottomNavigationBar: BottomActions(
@@ -64,11 +65,18 @@ class InviteScreen extends ConsumerWidget {
           mailToFallbackEnabled: false,
         ),
       );
-    } catch (_) {
-      await Clipboard.setData(ClipboardData(text: link));
-      messenger.showSnackBar(
-        const SnackBar(content: Text('공유할 수 없어서 초대 링크를 복사했어요')),
-      );
+    } on Exception {
+      // 공유창이 없는 브라우저면 링크 복사로 대신한다
+      try {
+        await Clipboard.setData(ClipboardData(text: link));
+        messenger.showSnackBar(
+          const SnackBar(content: Text('공유할 수 없어서 초대 링크를 복사했어요')),
+        );
+      } on Exception {
+        messenger.showSnackBar(
+          SnackBar(content: Text('공유하지 못했어요. 초대 코드 ${trip.inviteCode}를 알려주세요')),
+        );
+      }
     }
   }
 }
