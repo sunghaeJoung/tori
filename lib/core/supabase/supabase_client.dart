@@ -30,7 +30,15 @@ final supabaseProvider = Provider<SupabaseClient>(
 
 /// 로그인한 사용자. 세션이 없으면 익명으로 로그인한다.
 ///
+/// 실패하면(네트워크 등) 에러 상태가 되고, `ref.invalidate(authUserProvider)`로 다시 시도한다.
+final authUserProvider = FutureProvider<User>(
+  (ref) =>
+      ensureSignedIn(ref.watch(supabaseProvider))
+          .timeout(const Duration(seconds: 10)),
+);
+
 /// 익명 세션은 브라우저에 저장되므로 같은 브라우저에서는 계속 같은 사용자다.
+/// 네트워크는 처음 한 번만 쓴다.
 Future<User> ensureSignedIn(SupabaseClient client) async {
   final user = client.auth.currentUser;
   if (user != null) return user;

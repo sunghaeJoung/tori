@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/router.dart';
 import 'app/theme.dart';
@@ -12,14 +11,14 @@ Future<void> main() async {
   usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
   await initSupabase();
-  try {
-    // 처음 한 번만 네트워크를 쓴다. 이후엔 브라우저에 저장된 세션을 쓴다.
-    await ensureSignedIn(Supabase.instance.client);
-  } catch (e) {
-    // 네트워크가 안 돼도 앱은 띄운다. 저장할 때 다시 로그인을 시도한다.
-    debugPrint('익명 로그인 실패: $e');
-  }
-  runApp(const ProviderScope(child: ToriApp()));
+
+  // 로그인을 기다리지 않고 화면부터 띄운다. 로그인은 뒤에서 시작하고,
+  // 데이터가 필요한 곳에서 authUserProvider를 기다린다.
+  final container = ProviderContainer();
+  container.read(authUserProvider);
+  runApp(
+    UncontrolledProviderScope(container: container, child: const ToriApp()),
+  );
 }
 
 class ToriApp extends ConsumerWidget {
