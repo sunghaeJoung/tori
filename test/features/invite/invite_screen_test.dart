@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tori/app/router.dart';
-import 'package:tori/features/invite/ui/invite_screen.dart';
 
 import '../../helpers/fake_app.dart';
 
@@ -39,7 +38,7 @@ void main() {
     await tester.tap(find.text('복사'));
     await tester.pump();
 
-    expect(copied, inviteLink('TR7K2QAB'));
+    expect(copied, Routes.joinUrl('TR7K2QAB'));
     expect(find.text('복사했어요'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('복사'), findsOneWidget);

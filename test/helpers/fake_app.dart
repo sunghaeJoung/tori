@@ -9,6 +9,7 @@ import 'package:tori/core/supabase/supabase_client.dart';
 import 'package:tori/features/invite/data/invite_repository.dart';
 import 'package:tori/features/invite/providers.dart';
 import 'package:tori/features/onboarding/providers.dart';
+import 'package:tori/features/trips/data/trip.dart';
 import 'package:tori/features/trips/data/trips_repository.dart';
 import 'package:tori/features/trips/providers.dart';
 import 'package:tori/main.dart';
@@ -83,15 +84,18 @@ class FakeTripsRepository implements TripsRepository {
       currency: Currency.cny,
       inviteCode: 'TR7K2QAB',
       settled: false,
-      members: const [
-        Member(id: 'm1', name: '민지', userId: 'user-1'),
-        Member(id: 'm2', name: '수아'),
+      members: [
+        for (final (id, name) in sampleMembers)
+          Member(id: id, name: name, userId: id == 'm1' ? fakeUser.id : null),
       ],
     );
   }
 }
 
-/// 초대 코드 'ABCD2345'만 있는 가짜. 민지(나 아님)는 이미 들어와 있다.
+/// 가짜 여행 't1'의 멤버 (id, 이름). 여행방(나 = 민지)과 초대 미리보기가 함께 쓴다.
+const sampleMembers = [('m1', '민지'), ('m2', '수아'), ('m3', '지훈')];
+
+/// 초대 코드 'ABCD2345'(여행 't1')만 있는 가짜. 다른 사용자의 시점이라 민지는 이미 들어와 있다.
 class FakeInviteRepository implements InviteRepository {
   final joined = <(String code, String memberId)>[];
   Object? failWith;
@@ -101,10 +105,9 @@ class FakeInviteRepository implements InviteRepository {
     startDate: DateTime(2026, 11, 6),
     endDate: DateTime(2026, 11, 9),
     currency: Currency.cny,
-    members: const [
-      PreviewMember(id: 'm1', name: '민지', claimed: true, isMe: false),
-      PreviewMember(id: 'm2', name: '수아', claimed: false, isMe: false),
-      PreviewMember(id: 'm3', name: '지훈', claimed: false, isMe: false),
+    members: [
+      for (final (id, name) in sampleMembers)
+        PreviewMember(id: id, name: name, claimed: id == 'm1', isMe: false),
     ],
   );
 

@@ -90,7 +90,7 @@ void main() {
     await pumpApp(tester, repository: repo);
     // Riverpod 3은 실패한 provider를 자동으로 다시 시도하므로 그 사이 시간을 흘려보낸다
     await tester.pump(const Duration(seconds: 10));
-    expect(find.text('여행을 불러오지 못했어요'), findsOneWidget);
+    expect(find.text('불러오지 못했어요'), findsOneWidget);
 
     repo.failWith = null;
     await tapButton<FilledButton>(tester, '다시 시도');
