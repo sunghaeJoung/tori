@@ -71,7 +71,10 @@ Future<void> main(List<String> args) async {
   );
   check(
     'B는 A의 여행에 지출을 못 넣는다',
-    !isOk(await b.insert('expenses', expense(id, members[1]['id'] as String))),
+    deniedWith(
+      await b.insert('expenses', expense(id, members[1]['id'] as String)),
+      'row-level security',
+    ),
   );
   check(
     'B는 A의 여행 이름을 못 바꾼다',
@@ -79,7 +82,7 @@ Future<void> main(List<String> args) async {
   );
   check(
     'B는 여행을 직접 만들 수 없다 (create_trip RPC로만)',
-    !isOk(
+    deniedWith(
       await b.insert('trips', {
         'name': '직접',
         'start_date': '2026-11-06',
@@ -87,7 +90,26 @@ Future<void> main(List<String> args) async {
         'local_currency': 'KRW',
         'invite_code': 'ABCDEFGH',
       }),
+      'permission denied',
     ),
+  );
+  check(
+    'B에게 A의 분배·송금이 안 보인다',
+    isEmptyOrDenied(await b.get('expense_splits', 'select=*')) &&
+        isEmptyOrDenied(await b.get('settlements', 'trip_id=eq.$id')),
+  );
+  check(
+    '분배는 부담액만, 송금은 완료 체크만 고칠 수 있다',
+    deniedWith(
+          await a.patch('expense_splits', 'member_id=eq.${members[0]['id']}', {
+            'expense_id': '00000000-0000-0000-0000-000000000000',
+          }),
+          'permission denied',
+        ) &&
+        deniedWith(
+          await a.patch('settlements', 'trip_id=eq.$id', {'amount_krw': 10}),
+          'permission denied',
+        ),
   );
 
   // 초대 코드로 미리보기·입장
