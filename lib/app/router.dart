@@ -27,7 +27,7 @@ abstract final class Routes {
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     // 닉네임이 없으면 첫 실행 화면으로 보내는 처리는 4단계에서 redirect로 넣는다.
     routes: [
       GoRoute(
@@ -77,6 +77,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
     errorBuilder: (context, state) => const _NotFoundScreen(),
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
 
 String _tripId(GoRouterState state) => state.pathParameters['tripId']!;

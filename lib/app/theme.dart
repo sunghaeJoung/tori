@@ -54,6 +54,12 @@ ThemeData _buildToriTheme() {
       error: ToriColors.danger,
       outline: ToriColors.border,
       outlineVariant: ToriColors.divider,
+      // 카드·다이얼로그·바텀시트 배경. 시드에서 만든 분홍빛 대신 흰색으로.
+      surfaceContainerLowest: ToriColors.surface,
+      surfaceContainerLow: ToriColors.surface,
+      surfaceContainer: ToriColors.surface,
+      surfaceContainerHigh: ToriColors.surface,
+      surfaceContainerHighest: ToriColors.surface,
     ),
   );
 
@@ -78,7 +84,6 @@ ThemeData _buildToriTheme() {
     labelLarge: t.labelLarge!.copyWith(
       fontSize: 14,
       fontWeight: FontWeight.w600,
-      color: ToriColors.textSub,
     ),
   );
 
@@ -92,7 +97,8 @@ ThemeData _buildToriTheme() {
     // 주 버튼은 FilledButton, 연한 버튼은 FilledButton.tonal, 보조 버튼은 TextButton.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(56),
+        // 폭은 부모가 정한다 (BottomActions는 꽉 채움). 무한 폭을 쓰면 Row 안에서 깨진다.
+        minimumSize: const Size(64, 56),
         shape: shape16,
         textStyle: text.titleMedium,
         disabledBackgroundColor: ToriColors.disabled,

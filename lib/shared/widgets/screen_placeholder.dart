@@ -22,7 +22,7 @@ class ScreenPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: EmptyState(title: title, message: '$stage단계에서 만들어요'),
+      body: EmptyState(title: '$stage단계에서 만들어요'),
       bottomNavigationBar: BottomActions(children: actions),
     );
   }
