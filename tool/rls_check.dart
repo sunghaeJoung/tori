@@ -130,27 +130,33 @@ Future<void> main(List<String> args) async {
   // DB 제약조건
   check(
     '분배 없이 지출만 넣으면 거부 (분배 합계 = 지출 금액)',
-    !isOk(
+    deniedWith(
       await a.insert('expenses', expense(id, members.first['id'] as String)),
+      '분배 합계',
     ),
   );
   check(
     '여행 통화가 아닌 지출은 거부 (CNY 여행에 USD)',
-    !isOk(
+    deniedWith(
       await a.insert(
         'expenses',
         expense(id, members.first['id'] as String, currency: 'USD'),
       ),
+      '지출 통화',
     ),
   );
   check(
     '초대 코드는 바꿀 수 없다',
-    !isOk(await a.patch('trips', 'id=eq.$id', {'invite_code': 'ABCDEFGH'})),
+    deniedWith(
+      await a.patch('trips', 'id=eq.$id', {'invite_code': 'ABCDEFGH'}),
+      'permission denied',
+    ),
   );
   check(
     '멤버를 직접 추가할 수 없다',
-    !isOk(
+    deniedWith(
       await a.insert('members', {'trip_id': id, 'name': '몰래', 'sort_order': 9}),
+      'permission denied',
     ),
   );
 
@@ -180,6 +186,13 @@ void check(String name, bool ok) {
 }
 
 bool isOk(http.Response r) => r.statusCode >= 200 && r.statusCode < 300;
+
+/// 실패했고, 에러에 [reason]이 들어 있다 (다른 이유로 막힌 게 아님을 확인).
+bool deniedWith(http.Response r, String reason) {
+  final ok = !isOk(r) && r.body.contains(reason);
+  if (!ok) print('  응답 ${r.statusCode}: ${r.body}');
+  return ok;
+}
 
 bool isEmptyOrDenied(http.Response r) => !isOk(r) || r.body.trim() == '[]';
 
