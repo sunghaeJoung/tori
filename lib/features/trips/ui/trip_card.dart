@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
-import '../../../shared/date_range_text.dart';
+import '../../../shared/dates.dart';
+import '../../../shared/widgets/pill.dart';
 import '../data/trips_repository.dart';
 
 /// 홈의 여행 카드.
@@ -31,18 +32,10 @@ class TripCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _Pill(
-                    '${trip.currency.code} ${trip.currency.label}',
-                    background: ToriColors.accentSoft,
-                    foreground: ToriColors.accent,
-                  ),
+                  Pill('${trip.currency.code} ${trip.currency.label}'),
                   const Spacer(),
                   if (trip.settled)
-                    const _Pill(
-                      '정산 완료',
-                      background: Color(0xFFEFEBE5),
-                      foreground: ToriColors.textMuted,
-                    )
+                    const Pill.muted('정산 완료')
                   else
                     Text(
                       '여행 중',
@@ -70,35 +63,6 @@ class TripCard extends StatelessWidget {
                 ],
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill(this.label, {required this.background, required this.foreground});
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: foreground,
           ),
         ),
       ),

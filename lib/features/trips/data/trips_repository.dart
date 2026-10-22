@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/money/currency.dart';
+import '../../../shared/dates.dart';
 
 /// 홈 목록에 보이는 여행 요약.
 class TripSummary {
@@ -61,23 +62,17 @@ class TripsRepository {
     required Currency currency,
     required String myName,
     required List<String> friendNames,
-  }) async {
-    final id = await _client.rpc<String>(
+  }) {
+    return _client.rpc<String>(
       'create_trip',
       params: {
         'p_name': name,
-        'p_start_date': _dateOnly(startDate),
-        'p_end_date': _dateOnly(endDate),
+        'p_start_date': toDbDate(startDate),
+        'p_end_date': toDbDate(endDate),
         'p_local_currency': currency.code,
         'p_my_name': myName,
         'p_friend_names': friendNames,
       },
     );
-    return id;
   }
-
-  static String _dateOnly(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
 }

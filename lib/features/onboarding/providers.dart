@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase/supabase_client.dart';
+import '../../shared/limits.dart';
 
 /// 친구들에게 보일 이름. 익명 계정의 user_metadata에 저장한다. 없으면 null.
 final nicknameProvider = NotifierProvider<NicknameNotifier, String?>(
@@ -9,8 +10,6 @@ final nicknameProvider = NotifierProvider<NicknameNotifier, String?>(
 );
 
 class NicknameNotifier extends Notifier<String?> {
-  static const maxLength = 20;
-
   @override
   String? build() {
     final client = ref.watch(supabaseProvider);
@@ -23,8 +22,12 @@ class NicknameNotifier extends Notifier<String?> {
 
   Future<void> save(String nickname) async {
     final trimmed = nickname.trim();
-    if (trimmed.isEmpty || trimmed.length > maxLength) {
-      throw ArgumentError.value(nickname, 'nickname', '1~$maxLength자');
+    if (trimmed.isEmpty || trimmed.length > Limits.personName) {
+      throw ArgumentError.value(
+        nickname,
+        'nickname',
+        '1~${Limits.personName}자',
+      );
     }
     await ref.read(authUserProvider.future);
     final response = await ref

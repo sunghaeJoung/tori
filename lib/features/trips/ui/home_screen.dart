@@ -107,14 +107,11 @@ class _TripList extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       children: [
-        if (ongoing.isNotEmpty) ...[
-          const _SectionTitle('진행 중인 여행'),
-          ...ongoing.map(card),
-        ],
-        if (past.isNotEmpty) ...[
-          const _SectionTitle('지난 여행'),
-          ...past.map(card),
-        ],
+        for (final (title, section) in [('진행 중인 여행', ongoing), ('지난 여행', past)])
+          if (section.isNotEmpty) ...[
+            _SectionTitle(title),
+            ...section.map(card),
+          ],
       ],
     );
   }
@@ -131,11 +128,8 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(top: 4, bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: ToriColors.textSub,
-        ),
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(fontWeight: FontWeight.w700, color: ToriColors.textSub),
       ),
     );
   }

@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/money/currency.dart';
-import '../../../core/money/money_format.dart';
-import '../../../core/supabase/supabase_client.dart';
+import '../../../shared/dates.dart';
+import '../../../shared/limits.dart';
 import '../../../shared/widgets/bottom_actions.dart';
+import '../../../shared/widgets/labeled_field.dart';
+import '../../../shared/widgets/money_text.dart';
 import '../../onboarding/providers.dart';
 import '../providers.dart';
 import 'trip_draft.dart';
@@ -25,7 +26,6 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
   static const _lastStep = 4;
 
   final _draft = TripDraft();
-  final _name = TextEditingController();
   final _friend = TextEditingController();
   var _step = 1;
   var _saving = false;
@@ -33,7 +33,6 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
 
   @override
   void dispose() {
-    _name.dispose();
     _friend.dispose();
     super.dispose();
   }
@@ -55,18 +54,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
     }
     setState(() => _saving = true);
     try {
-      await ref.read(authUserProvider.future);
-      final id = await ref
-          .read(tripsRepositoryProvider)
-          .createTrip(
-            name: _draft.name.trim(),
-            startDate: _draft.startDate!,
-            endDate: _draft.endDate!,
-            currency: _draft.currency!,
-            myName: _myName,
-            friendNames: _draft.friends,
-          );
-      ref.invalidate(myTripsProvider);
+      final id = await createTrip(ref, _draft, myName: _myName);
       if (mounted) context.go(Routes.invite(id));
     } catch (e) {
       debugPrint('여행 만들기 실패: $e');
@@ -172,15 +160,15 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
 
   List<Widget> _nameStep() => [
     const _StepTitle('여행 이름을 정해주세요', '친구들이 한눈에 알아볼 수 있는 이름이면 좋아요'),
-    _Labeled(
+    LabeledField(
       label: '여행 이름',
-      child: TextField(
-        controller: _name,
+      child: TextFormField(
+        initialValue: _draft.name,
         autofocus: true,
-        maxLength: TripDraft.maxNameLength,
+        maxLength: Limits.tripName,
         textInputAction: TextInputAction.next,
         onChanged: (value) => setState(() => _draft.name = value),
-        onSubmitted: (_) => _draft.nameValid ? _next() : null,
+        onFieldSubmitted: (_) => _draft.canProceed(1) ? _next() : null,
         decoration: const InputDecoration(
           hintText: '예: 상하이 우정여행',
           counterText: '',
@@ -195,7 +183,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
       spacing: 12,
       children: [
         Expanded(
-          child: _Labeled(
+          child: LabeledField(
             label: '출발',
             child: _DateField(
               date: _draft.startDate,
@@ -204,7 +192,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
           ),
         ),
         Expanded(
-          child: _Labeled(
+          child: LabeledField(
             label: '도착',
             child: _DateField(
               date: _draft.endDate,
@@ -245,7 +233,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
           ),
       ],
     ),
-    _Labeled(
+    LabeledField(
       label: '친구 추가',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,7 +243,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
             child: TextField(
               controller: _friend,
               autofocus: true,
-              maxLength: TripDraft.maxMemberNameLength,
+              maxLength: Limits.personName,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _addFriend(),
               decoration: InputDecoration(
@@ -298,27 +286,6 @@ class _StepTitle extends StatelessWidget {
   }
 }
 
-class _Labeled extends StatelessWidget {
-  const _Labeled({required this.label, required this.child});
-
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 8,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        child,
-      ],
-    );
-  }
-}
-
-final _dateText = DateFormat('yyyy.MM.dd');
-
 class _DateField extends StatelessWidget {
   const _DateField({required this.date, required this.onTap});
 
@@ -335,7 +302,7 @@ class _DateField extends StatelessWidget {
           suffixIcon: Icon(Icons.calendar_today_outlined, size: 20),
         ),
         child: Text(
-          date == null ? '날짜 선택' : _dateText.format(date!),
+          date == null ? '날짜 선택' : formatDate(date!),
           style: TextStyle(
             fontSize: 16,
             color: date == null ? ToriColors.textSub : ToriColors.text,
@@ -359,12 +326,13 @@ class _CurrencyOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sample = formatMoney(switch (currency) {
+    final sampleAmount = switch (currency) {
       Currency.krw => 12350,
       Currency.jpy => 1500,
       Currency.cny => 12850,
       Currency.usd => 1299,
-    }, currency);
+    };
+    final text = Theme.of(context).textTheme;
 
     return Semantics(
       selected: selected,
@@ -408,24 +376,19 @@ class _CurrencyOption extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 3,
                     children: [
-                      Text(
-                        currency.label,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      Text(currency.label, style: text.titleMedium),
                       Text(
                         currency == Currency.krw
                             ? '국내 여행 · 환율 없이 바로 정산'
                             : '정산할 때 원화로 바꿔요',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: text.bodySmall,
                       ),
                     ],
                   ),
                 ),
-                Text(
-                  sample,
+                MoneyText(
+                  sampleAmount,
+                  currency,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -451,30 +414,17 @@ class _MemberChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      padding: EdgeInsets.only(left: 16, right: onRemove == null ? 16 : 4),
-      decoration: BoxDecoration(
-        color: ToriColors.surface,
-        border: Border.all(color: ToriColors.border),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          if (onRemove != null)
-            IconButton(
-              tooltip: '$label 빼기',
-              onPressed: onRemove,
-              icon: const Icon(Icons.close, size: 16),
-              color: ToriColors.textSub,
-            ),
-        ],
-      ),
+    return InputChip(
+      label: Text(label),
+      labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      backgroundColor: ToriColors.surface,
+      side: const BorderSide(color: ToriColors.border),
+      shape: const StadiumBorder(),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      onDeleted: onRemove,
+      deleteIcon: const Icon(Icons.close, size: 16),
+      deleteIconColor: ToriColors.textSub,
+      deleteButtonTooltipMessage: '$label 빼기',
     );
   }
 }

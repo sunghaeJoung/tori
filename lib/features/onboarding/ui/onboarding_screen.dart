@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+import '../../../shared/limits.dart';
+import '../../../shared/widgets/labeled_field.dart';
 import '../../../shared/widgets/tori_mascot.dart';
 import '../../../shared/widgets/tori_wordmark.dart';
 import '../providers.dart';
@@ -67,17 +69,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ],
                 ),
               ),
-              Text('친구들에게 보일 이름', style: text.labelLarge),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _nickname,
-                maxLength: NicknameNotifier.maxLength,
-                textInputAction: TextInputAction.done,
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (_) => _canStart ? _start() : null,
-                decoration: const InputDecoration(
-                  hintText: '이름 또는 별명',
-                  counterText: '',
+              LabeledField(
+                label: '친구들에게 보일 이름',
+                child: TextField(
+                  controller: _nickname,
+                  maxLength: Limits.personName,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _canStart ? _start() : null,
+                  decoration: const InputDecoration(
+                    hintText: '이름 또는 별명',
+                    counterText: '',
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
