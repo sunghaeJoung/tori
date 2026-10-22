@@ -25,15 +25,15 @@ Future<void> main(List<String> args) async {
   print('익명 사용자 A, B 로그인\n');
 
   // A가 여행을 만든다
-  final tripId = (await a.rpc('create_trip', {
+  final created = await a.rpc('create_trip', {
     'p_name': 'RLS 점검',
     'p_start_date': '2026-11-06',
     'p_end_date': '2026-11-09',
     'p_local_currency': 'CNY',
     'p_my_name': '민지',
     'p_friend_names': ['수아', '지훈', '하린'],
-  })).body;
-  final id = jsonDecode(tripId) as String;
+  });
+  final id = jsonDecode(created.body) as String;
   final trips = await a.get('trips', 'id=eq.$id&select=invite_code');
   final code = (jsonDecode(trips.body) as List).single['invite_code'] as String;
   final members = jsonDecode(
@@ -222,20 +222,19 @@ class _Client {
   }
 
   Future<http.Response> rpc(String name, Map<String, Object?> params) =>
-      http.post(
-        Uri.parse('$url/rest/v1/rpc/$name'),
-        headers: _headers,
-        body: jsonEncode(params),
-      );
+      _post('rpc/$name', params);
 
   Future<http.Response> get(String table, String query) =>
       http.get(Uri.parse('$url/rest/v1/$table?$query'), headers: _headers);
 
   Future<http.Response> insert(String table, Map<String, Object?> row) =>
+      _post(table, row);
+
+  Future<http.Response> _post(String path, Map<String, Object?> body) =>
       http.post(
-        Uri.parse('$url/rest/v1/$table'),
+        Uri.parse('$url/rest/v1/$path'),
         headers: _headers,
-        body: jsonEncode(row),
+        body: jsonEncode(body),
       );
 
   Future<http.Response> patch(
