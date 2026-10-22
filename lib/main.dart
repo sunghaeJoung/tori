@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
@@ -38,6 +39,10 @@ class ToriApp extends ConsumerWidget {
       title: '토리',
       debugShowCheckedModeBanner: false,
       theme: toriTheme,
+      // 달력 등 Material 위젯 문구를 한국어로
+      locale: const Locale('ko'),
+      supportedLocales: const [Locale('ko')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       routerConfig: ref.watch(routerProvider),
     );
   }
