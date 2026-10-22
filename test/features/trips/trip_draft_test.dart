@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tori/core/money/currency.dart';
 import 'package:tori/features/trips/ui/trip_draft.dart';
+import 'package:tori/shared/limits.dart';
 
 void main() {
   test('단계마다 다음으로 갈 수 있는 조건', () {
@@ -47,7 +48,7 @@ void main() {
     expect(draft.addFriend('a' * 21, myName: '민지'), contains('20자'));
     expect(draft.friends, ['수아']);
 
-    for (var i = draft.friends.length; i < TripDraft.maxMembers - 1; i++) {
+    for (var i = draft.friends.length; i < Limits.members - 1; i++) {
       expect(draft.addFriend('친구$i', myName: '민지'), isNull);
     }
     expect(draft.addFriend('한명더', myName: '민지'), '멤버는 20명까지예요');

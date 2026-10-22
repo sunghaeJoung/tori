@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tori/features/trips/data/trips_repository.dart';
 
 import '../../helpers/fake_app.dart';
-
-class _FailingRepository extends FakeTripsRepository {
-  var fail = true;
-
-  @override
-  Future<List<TripSummary>> myTrips() async {
-    if (fail) throw Exception('오프라인');
-    return [sampleTrip()];
-  }
-}
 
 void main() {
   testWidgets('여행이 없으면 안내', (tester) async {
@@ -52,13 +41,14 @@ void main() {
   });
 
   testWidgets('불러오기에 실패하면 다시 시도할 수 있다', (tester) async {
-    final repo = _FailingRepository();
+    final repo = FakeTripsRepository(trips: [sampleTrip()])
+      ..failWith = Exception('오프라인');
     await pumpApp(tester, repository: repo);
     // Riverpod 3은 실패한 provider를 자동으로 다시 시도하므로 그 사이 시간을 흘려보낸다
     await tester.pump(const Duration(seconds: 10));
     expect(find.text('여행을 불러오지 못했어요'), findsOneWidget);
 
-    repo.fail = false;
+    repo.failWith = null;
     await tapButton<FilledButton>(tester, '다시 시도');
     expect(find.text('상하이 우정여행'), findsOneWidget);
   });
