@@ -62,8 +62,11 @@ class HomeScreen extends ConsumerWidget {
             message: '새 여행을 만들고 친구들을 초대해보세요',
           ),
         AsyncValue(hasValue: true, :final value?) => RefreshIndicator(
-          onRefresh: () => ref.refresh(myTripsProvider.future),
-          child: _TripList(trips: value),
+          onRefresh: () {
+            ref.invalidate(todayProvider);
+            return ref.refresh(myTripsProvider.future);
+          },
+          child: _TripList(trips: value, today: ref.watch(todayProvider)),
         ),
         AsyncValue(isLoading: true) => const Center(
           child: CircularProgressIndicator(),
@@ -91,19 +94,29 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _TripList extends StatelessWidget {
-  const _TripList({required this.trips});
+  const _TripList({required this.trips, required this.today});
 
   final List<TripSummary> trips;
+  final DateTime today;
 
   @override
   Widget build(BuildContext context) {
-    final ongoing = trips.where((t) => !t.settled).toList();
-    final past = trips.where((t) => t.settled).toList();
+    List<TripSummary> inPhase(TripPhase phase) =>
+        trips.where((t) => t.phaseOn(today) == phase).toList();
+
+    // 다가오는 여행은 가까운 순, 지난 여행은 최근 순
+    final ongoing = inPhase(TripPhase.ongoing)
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    final upcoming = inPhase(TripPhase.upcoming)
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    final past = inPhase(TripPhase.past)
+      ..sort((a, b) => b.endDate.compareTo(a.endDate));
 
     Widget card(TripSummary trip) => Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TripCard(
         trip: trip,
+        today: today,
         onTap: () => context.push(Routes.trip(trip.id)),
       ),
     );
@@ -111,7 +124,11 @@ class _TripList extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       children: [
-        for (final (title, section) in [('진행 중인 여행', ongoing), ('지난 여행', past)])
+        for (final (title, section) in [
+          ('진행 중인 여행', ongoing),
+          ('다가오는 여행', upcoming),
+          ('지난 여행', past),
+        ])
           if (section.isNotEmpty) ...[
             _SectionTitle(title),
             ...section.map(card),

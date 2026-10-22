@@ -3,6 +3,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/money/currency.dart';
 import '../../../shared/dates.dart';
 
+/// 홈에서 여행을 나누는 기준.
+enum TripPhase {
+  /// 오늘이 여행 기간 안
+  ongoing,
+
+  /// 출발 전
+  upcoming,
+
+  /// 도착일이 지났거나 정산을 마침
+  past,
+}
+
 /// 홈 목록에 보이는 여행 요약.
 class TripSummary {
   const TripSummary({
@@ -34,8 +46,22 @@ class TripSummary {
   final Currency currency;
   final int memberCount;
 
-  /// 정산을 확정했는가. 홈에서 "지난 여행"으로 간다.
+  /// 정산을 확정했는가. 정산을 마치면 날짜와 상관없이 "지난 여행"이다.
   final bool settled;
+
+  TripPhase phaseOn(DateTime today) {
+    final day = _day(today);
+    if (settled || day.isAfter(_day(endDate))) return TripPhase.past;
+    if (day.isBefore(_day(startDate))) return TripPhase.upcoming;
+    return TripPhase.ongoing;
+  }
+
+  /// 출발까지 남은 날 수 (내일 출발이면 1).
+  int daysUntilStart(DateTime today) =>
+      _day(startDate).difference(_day(today)).inDays;
+
+  /// 시간·서머타임과 상관없이 날짜끼리 비교하려고 UTC 자정으로 맞춘다.
+  static DateTime _day(DateTime d) => DateTime.utc(d.year, d.month, d.day);
 }
 
 class TripsRepository {

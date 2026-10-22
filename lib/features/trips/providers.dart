@@ -8,6 +8,9 @@ final tripsRepositoryProvider = Provider<TripsRepository>(
   (ref) => TripsRepository(ref.watch(supabaseProvider)),
 );
 
+/// 오늘 날짜. 테스트에서 고정할 수 있게 provider로 둔다.
+final todayProvider = Provider<DateTime>((ref) => DateTime.now());
+
 /// 내 여행 목록. 로그인이 끝난 뒤에 불러온다.
 final myTripsProvider = FutureProvider<List<TripSummary>>((ref) async {
   await ref.watch(authUserProvider.future);

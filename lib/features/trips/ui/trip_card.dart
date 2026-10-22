@@ -6,10 +6,18 @@ import '../../../shared/widgets/pill.dart';
 import '../data/trips_repository.dart';
 
 /// 홈의 여행 카드.
+///
+/// 오른쪽 위 표시: 여행 중 · D-9 · 정산 전 · 정산 완료
 class TripCard extends StatelessWidget {
-  const TripCard({super.key, required this.trip, required this.onTap});
+  const TripCard({
+    super.key,
+    required this.trip,
+    required this.today,
+    required this.onTap,
+  });
 
   final TripSummary trip;
+  final DateTime today;
   final VoidCallback onTap;
 
   @override
@@ -34,15 +42,7 @@ class TripCard extends StatelessWidget {
                 children: [
                   Pill('${trip.currency.code} ${trip.currency.label}'),
                   const Spacer(),
-                  if (trip.settled)
-                    const Pill.muted('정산 완료')
-                  else
-                    Text(
-                      '여행 중',
-                      style: text.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  _status(text),
                 ],
               ),
               Column(
@@ -67,5 +67,18 @@ class TripCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _status(TextTheme text) {
+    final label = text.bodySmall?.copyWith(fontWeight: FontWeight.w600);
+    return switch (trip.phaseOn(today)) {
+      TripPhase.ongoing => Text('여행 중', style: label),
+      TripPhase.upcoming => Text(
+        'D-${trip.daysUntilStart(today)}',
+        style: label,
+      ),
+      TripPhase.past when trip.settled => const Pill.muted('정산 완료'),
+      TripPhase.past => const Pill('정산 전'),
+    };
   }
 }
