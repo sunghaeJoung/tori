@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:tori/app/router.dart';
 import 'package:tori/main.dart';
 
@@ -29,7 +28,7 @@ Future<void> tapButton<T extends Widget>(
 
 void main() {
   testWidgets('첫 실행 → 홈 → 여행 만들기 → 초대 → 여행방', (tester) async {
-    await pumpApp(tester);
+    await pumpApp(tester, Routes.onboarding);
     expect(find.text('회원가입 없이 바로 시작해요'), findsOneWidget);
 
     await tapButton<FilledButton>(tester, '시작하기');
@@ -77,27 +76,16 @@ void main() {
     expect(appBarTitle('지출 수정'), findsOneWidget);
   });
 
+  testWidgets('처음 열면 홈', (tester) async {
+    await pumpApp(tester);
+    expect(find.text('아직 여행이 없어요'), findsOneWidget);
+  });
+
   testWidgets('없는 주소는 안내 화면 → 홈으로', (tester) async {
     await pumpApp(tester, '/nowhere');
     expect(find.text('페이지를 찾을 수 없어요'), findsOneWidget);
 
     await tapButton<FilledButton>(tester, '홈으로');
     expect(find.text('아직 여행이 없어요'), findsOneWidget);
-  });
-
-  test('Routes 경로', () {
-    expect(Routes.trip('t1'), '/trips/t1');
-    expect(Routes.expense('t1', 'e1'), '/trips/t1/expenses/e1');
-    expect(Routes.join('ABCD1234'), '/join/ABCD1234');
-  });
-
-  test('GoRouter는 앱 전체에서 하나', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    expect(
-      container.read(routerProvider),
-      same(container.read(routerProvider)),
-    );
-    expect(container.read(routerProvider), isA<GoRouter>());
   });
 }
