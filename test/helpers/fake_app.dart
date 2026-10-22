@@ -98,7 +98,12 @@ const sampleMembers = [('m1', '민지'), ('m2', '수아'), ('m3', '지훈')];
 /// 초대 코드 'ABCD2345'(여행 't1')만 있는 가짜. 다른 사용자의 시점이라 민지는 이미 들어와 있다.
 class FakeInviteRepository implements InviteRepository {
   final joined = <(String code, String memberId)>[];
+
+  /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
+
+  /// 값이 있으면 입장(claim)만 이 에러로 실패한다.
+  Object? claimFailWith;
 
   static final samplePreview = TripPreview(
     name: '상하이 우정여행',
@@ -119,7 +124,7 @@ class FakeInviteRepository implements InviteRepository {
 
   @override
   Future<String> claim(String inviteCode, String memberId) async {
-    if (failWith != null) throw failWith!;
+    if ((failWith ?? claimFailWith) case final error?) throw error;
     joined.add((inviteCode, memberId));
     return 't1';
   }

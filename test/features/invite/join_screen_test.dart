@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
 
 import '../../helpers/fake_app.dart';
@@ -61,5 +62,20 @@ void main() {
 
     expect(find.textContaining('들어가지 못했어요'), findsOneWidget);
     expect(find.text('나는 누구인가요?'), findsOneWidget);
+  });
+
+  testWidgets('코드·멤버가 바뀌어 거절되면 다시 고르라고 안내', (tester) async {
+    final invites = FakeInviteRepository();
+    await pumpApp(tester, location: Routes.join('ABCD2345'), invites: invites);
+    await tester.tap(find.text('수아'));
+    await tester.pump();
+
+    invites.claimFailWith = const PostgrestException(
+      message: '초대 코드나 멤버가 맞지 않다',
+      code: 'P0002',
+    );
+    await tapButton<FilledButton>(tester, '수아로 참여하기');
+
+    expect(find.text('여행 정보가 바뀌었어요. 이름을 다시 골라주세요'), findsOneWidget);
   });
 }
