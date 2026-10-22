@@ -5,6 +5,7 @@
 
 ## 진행 방식
 
+- **모든 답변·설명·질문은 한국어로 쓴다.** 영어로 답하지 않는다. (코드·명령어·고유명사는 원문 그대로)
 - 사용자는 Next.js 프론트 개발자이고 Flutter는 처음이다. Claude가 구현하고 사용자가 리뷰한다.
 - 로드맵(development.md 5장)의 단계 하나씩 진행한다. 단계가 끝나면 PR을 만들고 멈춘 뒤, 새로 나온 Flutter/Dart 개념을 짧게 설명한다. 사용자가 머지하기 전에는 다음 단계로 넘어가지 않는다.
 - 화면은 프로토타입 캔버스를 기준으로 만든다: https://claude.ai/artifact/5uegyZ6hZZrwM8SkgSBtfR
@@ -17,6 +18,8 @@ flutter run -d chrome --dart-define-from-file=env/dev.json   # 개발 실행
 flutter test                                                 # 단위·위젯 테스트
 flutter analyze                                              # 정적 분석 (경고 0 유지)
 flutter build web --no-web-resources-cdn --dart-define-from-file=env/prod.json   # 배포 빌드
+supabase db push                                             # 마이그레이션을 Supabase에 적용
+dart run tool/rls_check.dart                                 # 두 익명 사용자로 RLS 점검
 ```
 
 - 배포 빌드는 반드시 `--no-web-resources-cdn`을 붙인다. 엔진(CanvasKit)을 Google CDN이 아닌 우리 배포 파일에서 읽게 해서 중국에서도 앱이 뜨게 한다.
@@ -68,7 +71,7 @@ env/                     example.json만 커밋. dev.json·prod.json은 gitignor
   - RPC는 `security definer` + `set search_path = ''`로 만들고, 필요한 최소 정보만 반환
   - 금액 > 0, 통화 4종, 이름 길이, 분배 합계 = 지출 금액을 DB 제약조건으로도 막는다
   - 초대 코드는 암호학적 난수 8자리
-- RLS·RPC를 바꾸면 서로 다른 익명 사용자(일반 창 + 시크릿 창)로 남의 여행에 접근할 수 없는지 확인한다.
+- RLS·RPC를 바꾸면 서로 다른 익명 사용자(일반 창 + 시크릿 창)로 남의 여행에 접근할 수 없는지 확인한다. `tool/rls_check.dart`에 점검 항목을 추가하고 돌린다.
 - 패키지는 신뢰할 수 있는 것만 추가하고 `pubspec.lock`을 커밋한다. 외부 통신은 HTTPS만 쓴다.
 - git 훅(`.githooks/`, `git config core.hooksPath .githooks`): pre-commit에서 gitleaks 비밀정보 검사, pre-push에서 main push 차단.
 
