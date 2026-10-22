@@ -44,6 +44,22 @@ Future<void> main(List<String> args) async {
   ) as List;
 
   check('A는 자기 여행을 본다', trips.statusCode == 200);
+  final home = jsonDecode(
+    (await a.get(
+      'trips',
+      'select=id,name,start_date,end_date,local_currency,settled_at,members(count)',
+    )).body,
+  ) as List;
+  check(
+    '홈 목록 조회: 내 여행 1개, 멤버 수 4',
+    home.length == 1 && (home.single['members'] as List).single['count'] == 4,
+  );
+  final nickname = await a.updateUser({'nickname': '민지'});
+  check(
+    '익명 계정에 닉네임을 저장한다 (user_metadata)',
+    isOk(nickname) &&
+        (jsonDecode(nickname.body)['user_metadata'] as Map)['nickname'] == '민지',
+  );
   check('초대 코드는 8자리', RegExp(r'^[A-HJ-NP-Z2-9]{8}$').hasMatch(code));
   check(
     'A는 멤버 4명을 순서대로 보고, 첫 멤버(민지)에 연결돼 있다',
@@ -242,6 +258,12 @@ class _Client {
     _token =
         (jsonDecode(r.body) as Map<String, dynamic>)['access_token'] as String;
   }
+
+  Future<http.Response> updateUser(Map<String, Object?> data) => http.put(
+    Uri.parse('$url/auth/v1/user'),
+    headers: _headers,
+    body: jsonEncode({'data': data}),
+  );
 
   Future<http.Response> rpc(String name, Map<String, Object?> params) =>
       _post('rpc/$name', params);
