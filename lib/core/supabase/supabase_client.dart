@@ -31,17 +31,28 @@ final supabaseProvider = Provider<SupabaseClient>(
 /// 로그인한 사용자. 세션이 없으면 익명으로 로그인한다.
 ///
 /// 실패하면(네트워크 등) 에러 상태가 되고, `ref.invalidate(authUserProvider)`로 다시 시도한다.
-final authUserProvider = FutureProvider<User>(
-  (ref) =>
-      ensureSignedIn(ref.watch(supabaseProvider))
-          .timeout(const Duration(seconds: 10)),
-);
+/// 로그아웃되면(세션 만료·삭제) 스스로 다시 로그인한다.
+final authUserProvider = FutureProvider<User>((ref) {
+  final client = ref.watch(supabaseProvider);
+  final subscription = client.auth.onAuthStateChange.listen((state) {
+    if (state.event == AuthChangeEvent.signedOut) ref.invalidateSelf();
+  });
+  ref.onDispose(subscription.cancel);
+  return ensureSignedIn(client).timeout(const Duration(seconds: 10));
+});
+
+Future<User>? _pendingSignIn;
 
 /// 익명 세션은 브라우저에 저장되므로 같은 브라우저에서는 계속 같은 사용자다.
 /// 네트워크는 처음 한 번만 쓴다.
-Future<User> ensureSignedIn(SupabaseClient client) async {
+///
+/// 이미 로그인 중이면 그 요청을 같이 기다린다. 시간 초과 뒤 다시 시도해도
+/// 익명 사용자가 둘 생기지 않게 하기 위해서다.
+Future<User> ensureSignedIn(SupabaseClient client) {
   final user = client.auth.currentUser;
-  if (user != null) return user;
-  final response = await client.auth.signInAnonymously();
-  return response.user!;
+  if (user != null) return Future.value(user);
+  return _pendingSignIn ??= client.auth
+      .signInAnonymously()
+      .then((response) => response.user!)
+      .whenComplete(() => _pendingSignIn = null);
 }

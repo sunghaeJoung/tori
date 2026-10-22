@@ -5,12 +5,20 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'core/supabase/supabase_client.dart';
+import 'shared/widgets/empty_state.dart';
 
 Future<void> main() async {
   // 주소를 '/#/join/abc' 대신 '/join/abc'로 쓴다. 초대 링크를 깔끔하게 하기 위해.
   usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
-  await initSupabase();
+  try {
+    await initSupabase();
+  } catch (e) {
+    // 설정 누락 등으로 시작할 수 없으면 흰 화면 대신 안내를 띄운다.
+    debugPrint('앱 시작 실패: $e');
+    runApp(const _StartupErrorApp());
+    return;
+  }
 
   // 로그인을 기다리지 않고 화면부터 띄운다. 로그인은 뒤에서 시작하고,
   // 데이터가 필요한 곳에서 authUserProvider를 기다린다.
@@ -31,6 +39,22 @@ class ToriApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: toriTheme,
       routerConfig: ref.watch(routerProvider),
+    );
+  }
+}
+
+class _StartupErrorApp extends StatelessWidget {
+  const _StartupErrorApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '토리',
+      debugShowCheckedModeBanner: false,
+      theme: toriTheme,
+      home: const Scaffold(
+        body: EmptyState(title: '앱을 시작할 수 없어요', message: '잠시 후 새로고침해 주세요'),
+      ),
     );
   }
 }
