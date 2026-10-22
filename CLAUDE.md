@@ -47,7 +47,7 @@ env/                     example.json만 커밋. dev.json·prod.json은 gitignor
 - **main에 직접 커밋·push 금지.** main은 배포 때 `develop → main` PR로만 바꾼다. `--no-verify`로 훅을 우회하지 않는다.
 - 커밋은 작업 단위로 잘게 나눈다 (예: 테스트 추가, 기능 구현, 화면 연결을 각각). 메시지는 Conventional Commits + 한글 설명:
   `feat:` `fix:` `chore:` `test:` `docs:` `refactor:` → `feat: 지출 추가 화면 키패드 구현`
-- 커밋 메시지 끝에 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`을 붙인다.
+- 커밋 메시지에 `Co-Authored-By` 줄을 붙이지 않는다.
 
 ## 돈 계산 규칙
 
