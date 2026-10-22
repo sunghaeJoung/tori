@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
 import 'package:tori/core/money/currency.dart';
 import 'package:tori/core/supabase/supabase_client.dart';
+import 'package:tori/features/invite/data/invite_repository.dart';
+import 'package:tori/features/invite/providers.dart';
 import 'package:tori/features/onboarding/providers.dart';
 import 'package:tori/features/trips/data/trips_repository.dart';
 import 'package:tori/features/trips/providers.dart';
@@ -69,6 +71,55 @@ class FakeTripsRepository implements TripsRepository {
     ));
     return 'new-trip';
   }
+
+  @override
+  Future<TripDetail> tripDetail(String id) async {
+    if (failWith != null) throw failWith!;
+    return TripDetail(
+      id: id,
+      name: created.isEmpty ? '상하이 우정여행' : created.last.name,
+      startDate: DateTime(2026, 11, 6),
+      endDate: DateTime(2026, 11, 9),
+      currency: Currency.cny,
+      inviteCode: 'TR7K2QAB',
+      settled: false,
+      members: const [
+        Member(id: 'm1', name: '민지', userId: 'user-1'),
+        Member(id: 'm2', name: '수아'),
+      ],
+    );
+  }
+}
+
+/// 초대 코드 'ABCD2345'만 있는 가짜. 민지(나 아님)는 이미 들어와 있다.
+class FakeInviteRepository implements InviteRepository {
+  final joined = <(String code, String memberId)>[];
+  Object? failWith;
+
+  static final samplePreview = TripPreview(
+    name: '상하이 우정여행',
+    startDate: DateTime(2026, 11, 6),
+    endDate: DateTime(2026, 11, 9),
+    currency: Currency.cny,
+    members: const [
+      PreviewMember(id: 'm1', name: '민지', claimed: true, isMe: false),
+      PreviewMember(id: 'm2', name: '수아', claimed: false, isMe: false),
+      PreviewMember(id: 'm3', name: '지훈', claimed: false, isMe: false),
+    ],
+  );
+
+  @override
+  Future<TripPreview?> preview(String inviteCode) async {
+    if (failWith != null) throw failWith!;
+    return inviteCode == 'ABCD2345' ? samplePreview : null;
+  }
+
+  @override
+  Future<String> claim(String inviteCode, String memberId) async {
+    if (failWith != null) throw failWith!;
+    joined.add((inviteCode, memberId));
+    return 't1';
+  }
 }
 
 final fakeUser = User(
@@ -106,6 +157,7 @@ Future<void> pumpApp(
   String? location,
   String? nickname = '민지',
   FakeTripsRepository? repository,
+  FakeInviteRepository? invites,
   List<Override> overrides = const [],
 }) async {
   final repo = repository ?? FakeTripsRepository();
@@ -114,6 +166,9 @@ Future<void> pumpApp(
       nicknameProvider.overrideWith(() => FakeNickname(nickname)),
       authUserProvider.overrideWith((ref) => fakeUser),
       tripsRepositoryProvider.overrideWithValue(repo),
+      inviteRepositoryProvider.overrideWithValue(
+        invites ?? FakeInviteRepository(),
+      ),
       todayProvider.overrideWithValue(testToday),
       ...overrides,
     ],

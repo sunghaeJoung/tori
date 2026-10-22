@@ -43,7 +43,7 @@ void main() {
     await tester.pumpAndSettle();
     await tapButton<FilledButton>(tester, '시작하기');
 
-    expect(appBarTitle('나는 누구?'), findsOneWidget);
+    expect(find.text('나는 누구인가요?'), findsOneWidget);
   });
 
   testWidgets('이름이 DB 기준 20자를 넘으면 이유를 보여주고 못 누른다', (tester) async {
@@ -88,7 +88,7 @@ void main() {
     expect(find.text('여행 이름을 정해주세요'), findsOneWidget);
 
     await pumpApp(tester, location: Routes.join('ABCD2345'));
-    expect(appBarTitle('나는 누구?'), findsOneWidget);
+    expect(find.text('나는 누구인가요?'), findsOneWidget);
 
     await pumpApp(tester, location: Routes.expense('t1', 'e1'));
     expect(appBarTitle('지출 수정'), findsOneWidget);

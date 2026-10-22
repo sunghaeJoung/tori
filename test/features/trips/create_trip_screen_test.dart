@@ -94,7 +94,7 @@ void main() {
     expect(created.currency, Currency.cny);
     expect(created.myName, '민지');
     expect(created.friendNames, ['수아', '하린']);
-    expect(appBarTitle('초대하기'), findsOneWidget);
+    expect(find.text('상하이 우정여행\n여행방이 생겼어요'), findsOneWidget);
   });
 
   testWidgets('뒤로를 누르면 이전 단계, 첫 단계에서는 홈으로', (tester) async {
