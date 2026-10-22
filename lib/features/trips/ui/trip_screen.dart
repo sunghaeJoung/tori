@@ -25,7 +25,7 @@ class TripScreen extends StatelessWidget {
           child: const Text('친구 초대'),
         ),
         TextButton(
-          onPressed: () => context.push(Routes.settle(tripId)),
+          onPressed: () => context.push(Routes.rate(tripId)),
           child: const Text('정산하기'),
         ),
       ],

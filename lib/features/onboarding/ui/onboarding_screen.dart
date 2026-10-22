@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/tori_mascot.dart';
+import '../../../shared/widgets/tori_wordmark.dart';
 
 /// 01 첫 실행. 닉네임 입력은 4단계에서 붙인다.
 class OnboardingScreen extends StatelessWidget {
@@ -18,28 +19,18 @@ class OnboardingScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   spacing: 14,
                   children: [
-                    ToriMascot(size: 112, face: ToriFace.smile),
-                    Text(
-                      '토리',
-                      style: TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w800,
-                        color: ToriColors.acornCap,
-                      ),
-                    ),
+                    const ToriMascot(size: 112, face: ToriFace.smile),
+                    const ToriWordmark(size: 44),
                     Text(
                       '여행 경비, 도토리처럼 공평하게.\n여행이 끝나면 원화로 깔끔하게 나눠드려요.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.65,
-                        color: ToriColors.textSub,
-                      ),
+                      style: Theme.of(context).textTheme.bodyLarge
+                          ?.copyWith(height: 1.65, color: ToriColors.textSub),
                     ),
                   ],
                 ),

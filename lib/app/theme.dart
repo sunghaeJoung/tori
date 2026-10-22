@@ -33,18 +33,17 @@ abstract final class ToriColors {
 final ThemeData toriTheme = _buildToriTheme();
 
 ThemeData _buildToriTheme() {
-  const radius16 = RoundedRectangleBorder(
-    borderRadius: BorderRadius.all(Radius.circular(16)),
-  );
+  const radius16 = BorderRadius.all(Radius.circular(16));
+  const shape16 = RoundedRectangleBorder(borderRadius: radius16);
   OutlineInputBorder inputBorder(Color color, [double width = 1]) =>
       OutlineInputBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(16)),
+        borderRadius: radius16,
         borderSide: BorderSide(color: color, width: width),
       );
 
+  // M3에서는 Scaffold·AppBar 배경이 surface, 구분선이 outlineVariant를 따른다.
   final base = ThemeData(
     fontFamily: 'Pretendard',
-    scaffoldBackgroundColor: ToriColors.background,
     colorScheme: ColorScheme.fromSeed(seedColor: ToriColors.accent).copyWith(
       primary: ToriColors.accent,
       onPrimary: ToriColors.surface,
@@ -58,55 +57,44 @@ ThemeData _buildToriTheme() {
     ),
   );
 
+  final t = base.textTheme;
+  final text = t.copyWith(
+    headlineMedium: t.headlineMedium!.copyWith(
+      fontSize: 26,
+      fontWeight: FontWeight.w800,
+      height: 1.35,
+    ),
+    titleLarge: t.titleLarge!.copyWith(
+      fontSize: 18,
+      fontWeight: FontWeight.w800,
+    ),
+    titleMedium: t.titleMedium!.copyWith(
+      fontSize: 17,
+      fontWeight: FontWeight.w700,
+    ),
+    bodyLarge: t.bodyLarge!.copyWith(fontSize: 16),
+    bodyMedium: t.bodyMedium!.copyWith(fontSize: 15),
+    bodySmall: t.bodySmall!.copyWith(fontSize: 13, color: ToriColors.textSub),
+    labelLarge: t.labelLarge!.copyWith(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: ToriColors.textSub,
+    ),
+  );
+
   return base.copyWith(
-    textTheme: base.textTheme
-        .copyWith(
-          headlineMedium: const TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            height: 1.35,
-          ),
-          titleLarge: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-          titleMedium: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-          bodyLarge: const TextStyle(fontSize: 16),
-          bodyMedium: const TextStyle(fontSize: 15),
-          bodySmall: const TextStyle(fontSize: 13, color: ToriColors.textSub),
-          labelLarge: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: ToriColors.textSub,
-          ),
-        )
-        .apply(fontFamily: 'Pretendard'),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: ToriColors.background,
-      foregroundColor: ToriColors.text,
-      elevation: 0,
+    textTheme: text,
+    appBarTheme: AppBarTheme(
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Pretendard',
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
-        color: ToriColors.text,
-      ),
+      titleTextStyle: text.titleLarge,
     ),
     // 주 버튼은 FilledButton, 연한 버튼은 FilledButton.tonal, 보조 버튼은 TextButton.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(56),
-        shape: radius16,
-        textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-        ),
+        shape: shape16,
+        textStyle: text.titleMedium,
         disabledBackgroundColor: ToriColors.disabled,
         disabledForegroundColor: ToriColors.textSub,
       ),
@@ -114,13 +102,9 @@ ThemeData _buildToriTheme() {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(44, 52),
-        shape: radius16,
+        shape: shape16,
         foregroundColor: ToriColors.textMuted,
-        textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: text.bodyLarge!.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -132,11 +116,6 @@ ThemeData _buildToriTheme() {
       enabledBorder: inputBorder(ToriColors.border),
       focusedBorder: inputBorder(ToriColors.accent, 1.5),
       errorBorder: inputBorder(ToriColors.danger),
-    ),
-    dividerTheme: const DividerThemeData(
-      color: ToriColors.divider,
-      thickness: 1,
-      space: 1,
     ),
   );
 }

@@ -22,14 +22,13 @@ abstract final class Routes {
   static String newExpense(String tripId) => '/trips/$tripId/expenses/new';
   static String expense(String tripId, String expenseId) =>
       '/trips/$tripId/expenses/$expenseId';
-  static String settle(String tripId) => '/trips/$tripId/settle';
+  static String rate(String tripId) => '/trips/$tripId/rate';
   static String join(String code) => '/join/$code';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    // 닉네임이 있으면 홈으로 보내는 처리는 4단계에서 redirect로 넣는다.
-    initialLocation: Routes.onboarding,
+    // 닉네임이 없으면 첫 실행 화면으로 보내는 처리는 4단계에서 redirect로 넣는다.
     routes: [
       GoRoute(
         path: Routes.onboarding,
@@ -46,30 +45,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/trips/:tripId',
-        builder: (context, state) =>
-            TripScreen(tripId: state.pathParameters['tripId']!),
+        builder: (context, state) => TripScreen(tripId: _tripId(state)),
         routes: [
           GoRoute(
             path: 'invite',
-            builder: (context, state) =>
-                InviteScreen(tripId: state.pathParameters['tripId']!),
+            builder: (context, state) => InviteScreen(tripId: _tripId(state)),
           ),
           GoRoute(
             path: 'expenses/new',
             builder: (context, state) =>
-                ExpenseFormScreen(tripId: state.pathParameters['tripId']!),
+                ExpenseFormScreen(tripId: _tripId(state)),
           ),
           GoRoute(
             path: 'expenses/:expenseId',
             builder: (context, state) => ExpenseFormScreen(
-              tripId: state.pathParameters['tripId']!,
+              tripId: _tripId(state),
               expenseId: state.pathParameters['expenseId'],
             ),
           ),
           GoRoute(
-            path: 'settle',
-            builder: (context, state) =>
-                RateScreen(tripId: state.pathParameters['tripId']!),
+            path: 'rate',
+            builder: (context, state) => RateScreen(tripId: _tripId(state)),
           ),
         ],
       ),
@@ -82,6 +78,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => const _NotFoundScreen(),
   );
 });
+
+String _tripId(GoRouterState state) => state.pathParameters['tripId']!;
 
 class _NotFoundScreen extends StatelessWidget {
   const _NotFoundScreen();

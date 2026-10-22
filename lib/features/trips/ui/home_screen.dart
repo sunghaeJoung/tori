@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
-import '../../../app/theme.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/tori_mascot.dart';
+import '../../../shared/widgets/tori_wordmark.dart';
 
 /// 02 홈. 여행 목록은 4단계에서 붙인다.
 class HomeScreen extends StatelessWidget {
@@ -21,14 +21,7 @@ class HomeScreen extends StatelessWidget {
           spacing: 8,
           children: [
             ToriMascot(size: 28, face: ToriFace.none),
-            Text(
-              '토리',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: ToriColors.acornCap,
-              ),
-            ),
+            ToriWordmark(),
           ],
         ),
       ),

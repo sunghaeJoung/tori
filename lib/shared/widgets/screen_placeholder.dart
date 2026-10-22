@@ -9,7 +9,7 @@ class ScreenPlaceholder extends StatelessWidget {
     super.key,
     required this.title,
     required this.stage,
-    this.actions = const [],
+    required this.actions,
   });
 
   final String title;
@@ -23,9 +23,7 @@ class ScreenPlaceholder extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: EmptyState(title: title, message: '$stage단계에서 만들어요'),
-      bottomNavigationBar: actions.isEmpty
-          ? null
-          : BottomActions(children: actions),
+      bottomNavigationBar: BottomActions(children: actions),
     );
   }
 }
