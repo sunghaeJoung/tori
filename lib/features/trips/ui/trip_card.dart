@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/widgets/pill.dart';
-import '../data/trips_repository.dart';
+import '../data/trip.dart';
 
 /// 홈의 여행 카드.
 ///

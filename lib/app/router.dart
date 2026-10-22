@@ -25,6 +25,9 @@ abstract final class Routes {
       '/trips/$tripId/expenses/$expenseId';
   static String rate(String tripId) => '/trips/$tripId/rate';
   static String join(String code) => '/join/$code';
+
+  /// 친구에게 보내는 초대 링크(전체 주소). 지금 열린 사이트 주소를 기준으로 만든다.
+  static String joinUrl(String code) => Uri.base.resolve(join(code)).toString();
 }
 
 final routerProvider = Provider<GoRouter>((ref) {

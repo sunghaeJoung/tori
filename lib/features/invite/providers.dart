@@ -9,13 +9,12 @@ final inviteRepositoryProvider = Provider<InviteRepository>(
 );
 
 /// 초대 코드로 본 여행. 코드가 틀리면 null.
-final tripPreviewProvider = FutureProvider.family<TripPreview?, String>((
-  ref,
-  inviteCode,
-) async {
-  await ref.watch(authUserProvider.future);
-  return ref.watch(inviteRepositoryProvider).preview(inviteCode);
-});
+/// 화면을 떠나면 버려서, 다시 열 때 누가 들어왔는지 새로 불러온다.
+final tripPreviewProvider = FutureProvider.autoDispose
+    .family<TripPreview?, String>((ref, inviteCode) async {
+      await ref.watch(authUserProvider.future);
+      return ref.watch(inviteRepositoryProvider).preview(inviteCode);
+    });
 
 final inviteActionsProvider = Provider<InviteActions>(InviteActions.new);
 
@@ -32,8 +31,7 @@ class InviteActions {
         .claim(inviteCode, memberId);
     _ref
       ..invalidate(myTripsProvider)
-      ..invalidate(tripDetailProvider(tripId))
-      ..invalidate(tripPreviewProvider(inviteCode));
+      ..invalidate(tripDetailProvider(tripId));
     return tripId;
   }
 }

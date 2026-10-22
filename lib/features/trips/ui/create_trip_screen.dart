@@ -10,6 +10,7 @@ import '../../../shared/limits.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/labeled_field.dart';
 import '../../../shared/widgets/money_text.dart';
+import '../../../shared/widgets/selectable_card.dart';
 import '../../onboarding/providers.dart';
 import '../providers.dart';
 import 'trip_draft.dart';
@@ -343,71 +344,54 @@ class _CurrencyOption extends StatelessWidget {
     };
     final text = Theme.of(context).textTheme;
 
-    return Semantics(
+    return SelectableCard(
       selected: selected,
-      button: true,
-      child: Material(
-        color: selected ? ToriColors.accentSoft : ToriColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: selected ? ToriColors.accent : ToriColors.cardBorder,
-            width: 2,
+      onTap: onTap,
+      child: Row(
+        spacing: 14,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: ToriColors.tile,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              currency.code,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: ToriColors.acornCap,
+              ),
+            ),
           ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
-            child: Row(
-              spacing: 14,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: ToriColors.tile,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    currency.code,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: ToriColors.acornCap,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 3,
-                    children: [
-                      Text(currency.label, style: text.titleMedium),
-                      Text(
-                        currency == Currency.krw
-                            ? '국내 여행 · 환율 없이 바로 정산'
-                            : '정산할 때 원화로 바꿔요',
-                        style: text.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                MoneyText(
-                  sampleAmount,
-                  currency,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: ToriColors.textMuted,
-                  ),
+                Text(currency.label, style: text.titleMedium),
+                Text(
+                  currency == Currency.krw
+                      ? '국내 여행 · 환율 없이 바로 정산'
+                      : '정산할 때 원화로 바꿔요',
+                  style: text.bodySmall,
                 ),
               ],
             ),
           ),
-        ),
+          MoneyText(
+            sampleAmount,
+            currency,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: ToriColors.textMuted,
+            ),
+          ),
+        ],
       ),
     );
   }

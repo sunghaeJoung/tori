@@ -6,18 +6,10 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/bottom_actions.dart';
-import '../../../shared/widgets/empty_state.dart';
-import '../../trips/data/trips_repository.dart';
+import '../../trips/data/trip.dart';
 import '../../trips/providers.dart';
-
-/// 지금 열린 주소 기준의 초대 링크 (배포 주소가 바뀌어도 그대로 맞는다).
-String inviteLink(String inviteCode) => Uri(
-  scheme: Uri.base.scheme,
-  host: Uri.base.host,
-  port: Uri.base.hasPort ? Uri.base.port : null,
-  path: Routes.join(inviteCode),
-).toString();
 
 /// 05 초대하기. 초대 코드·링크를 복사하거나 휴대폰 공유창으로 보낸다.
 class InviteScreen extends ConsumerWidget {
@@ -42,20 +34,11 @@ class InviteScreen extends ConsumerWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: switch (trip) {
-        AsyncValue(hasValue: true, :final value?) => _InviteBody(trip: value),
-        AsyncValue(isLoading: true) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-        _ => EmptyState(
-          title: '여행을 불러오지 못했어요',
-          message: '인터넷 연결을 확인해 주세요',
-          action: FilledButton.tonal(
-            onPressed: () => ref.invalidate(tripDetailProvider(tripId)),
-            child: const Text('다시 시도'),
-          ),
-        ),
-      },
+      body: AsyncView(
+        value: trip,
+        onRetry: () => ref.invalidate(tripDetailProvider(tripId)),
+        data: (trip) => _InviteBody(trip: trip),
+      ),
       bottomNavigationBar: BottomActions(
         children: [
           if (trip.value case final value?)
@@ -72,7 +55,7 @@ class InviteScreen extends ConsumerWidget {
 
   /// 휴대폰 공유창을 연다. 공유창이 없는 브라우저(PC 등)면 링크를 복사한다.
   Future<void> _share(BuildContext context, TripDetail trip) async {
-    final link = inviteLink(trip.inviteCode);
+    final link = Routes.joinUrl(trip.inviteCode);
     final messenger = ScaffoldMessenger.of(context);
     try {
       await SharePlus.instance.share(
@@ -112,8 +95,8 @@ class _InviteBodyState extends State<_InviteBody> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final code = widget.trip.inviteCode;
-    final link = inviteLink(code);
+    final chars = widget.trip.inviteCode.split('');
+    final link = Routes.joinUrl(widget.trip.inviteCode);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -141,13 +124,12 @@ class _InviteBodyState extends State<_InviteBody> {
             children: [
               Text('초대 코드', style: text.labelLarge),
               Semantics(
-                label: '초대 코드 ${code.split('').join(' ')}',
+                label: '초대 코드 ${chars.join(' ')}',
                 child: ExcludeSemantics(
                   child: Row(
                     spacing: 6,
                     children: [
-                      for (final char in code.split(''))
-                        Expanded(child: _CodeBox(char)),
+                      for (final char in chars) Expanded(child: _CodeBox(char)),
                     ],
                   ),
                 ),
@@ -162,11 +144,7 @@ class _InviteBodyState extends State<_InviteBody> {
               Container(
                 height: 56,
                 padding: const EdgeInsets.only(left: 16, right: 6),
-                decoration: BoxDecoration(
-                  color: ToriColors.surface,
-                  border: Border.all(color: ToriColors.border),
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                decoration: _box(16),
                 child: Row(
                   spacing: 8,
                   children: [
@@ -211,15 +189,18 @@ class _CodeBox extends StatelessWidget {
     return Container(
       height: 56,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: ToriColors.surface,
-        border: Border.all(color: ToriColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: _box(12),
       child: Text(
         char,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22),
       ),
     );
   }
 }
+
+/// 입력칸처럼 보이는 흰 상자.
+BoxDecoration _box(double radius) => BoxDecoration(
+  color: ToriColors.surface,
+  border: Border.all(color: ToriColors.border),
+  borderRadius: BorderRadius.circular(radius),
+);

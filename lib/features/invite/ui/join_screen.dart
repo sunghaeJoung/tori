@@ -6,8 +6,10 @@ import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/korean.dart';
+import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/selectable_card.dart';
 import '../data/invite_repository.dart';
 import '../providers.dart';
 
@@ -22,15 +24,15 @@ class JoinScreen extends ConsumerStatefulWidget {
 }
 
 class _JoinScreenState extends ConsumerState<JoinScreen> {
-  String? _pickedId;
+  PreviewMember? _picked;
   var _joining = false;
 
-  Future<void> _join(String memberId) async {
+  Future<void> _join(PreviewMember member) async {
     setState(() => _joining = true);
     try {
       final tripId = await ref
           .read(inviteActionsProvider)
-          .join(widget.code, memberId);
+          .join(widget.code, member.id);
       if (mounted) context.go(Routes.trip(tripId));
     } catch (e) {
       debugPrint('입장 실패: $e');
@@ -45,102 +47,88 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   @override
   Widget build(BuildContext context) {
     final preview = ref.watch(tripPreviewProvider(widget.code));
-
-    return switch (preview) {
-      AsyncValue(hasValue: true, value: null) => Scaffold(
-        body: EmptyState(
-          title: '초대 코드를 찾을 수 없어요',
-          message: '링크가 맞는지 초대한 친구에게 확인해 주세요',
-          action: FilledButton(
-            onPressed: () => context.go(Routes.home),
-            child: const Text('홈으로'),
-          ),
-        ),
-      ),
-      AsyncValue(hasValue: true, :final value?) => _buildPreview(value),
-      AsyncValue(isLoading: true) => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      _ => Scaffold(
-        body: EmptyState(
-          title: '여행을 불러오지 못했어요',
-          message: '인터넷 연결을 확인해 주세요',
-          action: FilledButton.tonal(
-            onPressed: () => ref.invalidate(tripPreviewProvider(widget.code)),
-            child: const Text('다시 시도'),
-          ),
-        ),
-      ),
-    };
-  }
-
-  Widget _buildPreview(TripPreview trip) {
-    final text = Theme.of(context).textTheme;
+    final trip = preview.value;
     // 이미 이 브라우저로 들어온 적 있으면 그 이름을 골라 둔다
-    final pickedId =
-        _pickedId ?? trip.members.where((m) => m.isMe).firstOrNull?.id;
-    final picked = trip.members.where((m) => m.id == pickedId).firstOrNull;
+    final picked = _picked ?? trip?.members.where((m) => m.isMe).firstOrNull;
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 24,
+        child: AsyncView(
+          value: preview,
+          onRetry: () => ref.invalidate(tripPreviewProvider(widget.code)),
+          data: (trip) => trip == null
+              ? EmptyState(
+                  title: '초대 코드를 찾을 수 없어요',
+                  message: '링크가 맞는지 초대한 친구에게 확인해 주세요',
+                  action: FilledButton(
+                    onPressed: () => context.go(Routes.home),
+                    child: const Text('홈으로'),
+                  ),
+                )
+              : _body(trip, picked),
+        ),
+      ),
+      bottomNavigationBar: trip == null
+          ? null
+          : BottomActions(
+              children: [
+                FilledButton(
+                  onPressed: picked == null || _joining
+                      ? null
+                      : () => _join(picked),
+                  child: Text(switch ((picked, _joining)) {
+                    (null, _) => '내 이름을 골라주세요',
+                    (_, true) => '들어가는 중…',
+                    (final member?, _) => '${withRo(member.name)} 참여하기',
+                  }),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _body(TripPreview trip, PreviewMember? picked) {
+    final text = Theme.of(context).textTheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 24,
+        children: [
+          _TripCard(trip: trip),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 6,
             children: [
-              _TripCard(trip: trip),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 6,
-                children: [
-                  Text('나는 누구인가요?', style: text.headlineMedium),
-                  Text(
-                    '내 이름을 고르면 바로 여행방에 들어가요',
-                    style: text.bodyMedium?.copyWith(color: ToriColors.textSub),
-                  ),
-                ],
+              Text('나는 누구인가요?', style: text.headlineMedium),
+              Text(
+                '내 이름을 고르면 바로 여행방에 들어가요',
+                style: text.bodyMedium?.copyWith(color: ToriColors.textSub),
               ),
-              Column(
-                spacing: 10,
-                children: [
-                  for (final member in trip.members)
-                    _MemberOption(
-                      member: member,
-                      selected: member.id == pickedId,
-                      onTap: _joining
-                          ? null
-                          : () => setState(() => _pickedId = member.id),
-                    ),
-                ],
-              ),
-              if (picked != null && picked.claimed && !picked.isMe)
-                Text(
-                  '다른 기기에서 이미 들어온 이름이에요. 본인일 때만 골라주세요.\n'
-                  '이 기기로 들어오면 원래 기기는 이 이름에서 빠져요.',
-                  style: text.bodySmall?.copyWith(
-                    color: ToriColors.danger,
-                    height: 1.5,
-                  ),
+            ],
+          ),
+          Column(
+            spacing: 10,
+            children: [
+              for (final member in trip.members)
+                _MemberOption(
+                  member: member,
+                  selected: member.id == picked?.id,
+                  onTap: _joining
+                      ? null
+                      : () => setState(() => _picked = member),
                 ),
             ],
           ),
-        ),
-      ),
-      bottomNavigationBar: BottomActions(
-        children: [
-          FilledButton(
-            onPressed: picked == null || _joining
-                ? null
-                : () => _join(picked.id),
-            child: Text(
-              picked == null
-                  ? '내 이름을 골라주세요'
-                  : _joining
-                  ? '들어가는 중…'
-                  : '${withRo(picked.name)} 참여하기',
+          if (picked != null && picked.claimed && !picked.isMe)
+            Text(
+              '다른 기기에서 이미 들어온 이름이에요. 본인일 때만 골라주세요.\n'
+              '이 기기로 들어오면 원래 기기는 이 이름에서 빠져요.',
+              style: text.bodySmall?.copyWith(
+                color: ToriColors.danger,
+                height: 1.5,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -172,17 +160,11 @@ class _TripCard extends StatelessWidget {
               color: ToriColors.accent,
             ),
           ),
-          Text(
-            trip.name,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-          ),
+          Text(trip.name, style: text.titleLarge?.copyWith(fontSize: 22)),
           Text(
             '${formatDateRange(trip.startDate, trip.endDate)} · '
             '${trip.currency.label} · ${trip.members.length}명',
-            style: text.bodySmall?.copyWith(
-              fontSize: 14,
-              color: ToriColors.textMuted,
-            ),
+            style: text.bodyMedium?.copyWith(color: ToriColors.textMuted),
           ),
         ],
       ),
@@ -203,59 +185,32 @@ class _MemberOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     final status = member.isMe
         ? '나'
         : member.claimed
         ? '참여 중'
-        : '';
-    return Semantics(
+        : null;
+    return SelectableCard(
       selected: selected,
-      button: true,
-      child: Material(
-        color: selected ? ToriColors.accentSoft : ToriColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: selected ? ToriColors.accent : ToriColors.cardBorder,
-            width: 2,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-            child: Row(
-              spacing: 14,
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: ToriColors.tile,
-                  foregroundColor: ToriColors.acornCap,
-                  child: Text(
-                    member.name.characters.first,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    member.name,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (status.isNotEmpty)
-                  Text(status, style: Theme.of(context).textTheme.bodySmall),
-                if (selected) const Icon(Icons.check, color: ToriColors.accent),
-              ],
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
+      child: Row(
+        spacing: 14,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: ToriColors.tile,
+            foregroundColor: ToriColors.acornCap,
+            child: Text(
+              member.name.characters.first,
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-        ),
+          Expanded(child: Text(member.name, style: text.titleMedium)),
+          if (status != null) Text(status, style: text.bodySmall),
+          if (selected) const Icon(Icons.check, color: ToriColors.accent),
+        ],
       ),
     );
   }
