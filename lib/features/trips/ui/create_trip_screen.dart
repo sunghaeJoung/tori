@@ -40,10 +40,14 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
   String get _myName => ref.read(nicknameProvider) ?? '';
 
   void _back() {
+    if (_saving) return;
     if (_step > 1) {
       setState(() => _step--);
-    } else {
+    } else if (context.canPop()) {
       context.pop();
+    } else {
+      // 주소로 바로 들어와 돌아갈 화면이 없을 때
+      context.go(Routes.home);
     }
   }
 
@@ -54,7 +58,9 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
     }
     setState(() => _saving = true);
     try {
-      final id = await createTrip(ref, _draft, myName: _myName);
+      final id = await ref
+          .read(tripActionsProvider)
+          .create(_draft, myName: _myName);
       if (mounted) context.go(Routes.invite(id));
     } catch (e) {
       debugPrint('여행 만들기 실패: $e');
@@ -97,7 +103,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _step == 1,
+      canPop: _step == 1 && !_saving,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
@@ -169,9 +175,12 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
         textInputAction: TextInputAction.next,
         onChanged: (value) => setState(() => _draft.name = value),
         onFieldSubmitted: (_) => _draft.canProceed(1) ? _next() : null,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: '예: 상하이 우정여행',
           counterText: '',
+          errorText: textLength(_draft.name.trim()) > Limits.tripName
+              ? '여행 이름은 ${Limits.tripName}자까지 쓸 수 있어요'
+              : null,
         ),
       ),
     ),
@@ -225,7 +234,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _MemberChip(label: '$_myName (나)'),
+        _MemberChip(label: '${ref.watch(nicknameProvider) ?? ''} (나)'),
         for (final friend in _draft.friends)
           _MemberChip(
             label: friend,

@@ -77,9 +77,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   textInputAction: TextInputAction.done,
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (_) => _canStart ? _start() : null,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: '이름 또는 별명',
                     counterText: '',
+                    errorText: _lengthError,
                   ),
                 ),
               ),
@@ -101,5 +102,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  bool get _canStart => !_saving && _nickname.text.trim().isNotEmpty;
+  /// 입력 중엔 '비어 있음'은 보여주지 않고 길이 초과만 알린다.
+  String? get _lengthError => _nickname.text.trim().isEmpty
+      ? null
+      : NicknameNotifier.validate(_nickname.text);
+
+  bool get _canStart =>
+      !_saving && NicknameNotifier.validate(_nickname.text) == null;
 }

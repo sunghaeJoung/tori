@@ -14,23 +14,35 @@ final myTripsProvider = FutureProvider<List<TripSummary>>((ref) async {
   return ref.watch(tripsRepositoryProvider).myTrips();
 });
 
-/// 여행을 만들고 id를 돌려준다. 끝나면 홈 목록을 다시 불러온다.
-Future<String> createTrip(
-  WidgetRef ref,
-  TripDraft draft, {
-  required String myName,
-}) async {
-  await ref.read(authUserProvider.future);
-  final id = await ref
-      .read(tripsRepositoryProvider)
-      .createTrip(
-        name: draft.name.trim(),
-        startDate: draft.startDate!,
-        endDate: draft.endDate!,
-        currency: draft.currency!,
-        myName: myName,
-        friendNames: draft.friends,
-      );
-  ref.invalidate(myTripsProvider);
-  return id;
+/// 여행 쓰기 작업. 화면이 아니라 provider의 ref를 써서, 저장 도중 화면이 닫혀도
+/// 목록 새로고침까지 끝까지 한다.
+final tripActionsProvider = Provider<TripActions>(TripActions.new);
+
+class TripActions {
+  TripActions(this._ref);
+
+  final Ref _ref;
+
+  /// 여행을 만들고 id를 돌려준다. 끝나면 홈 목록을 다시 불러온다.
+  Future<String> create(TripDraft draft, {required String myName}) async {
+    await _ref.read(authUserProvider.future);
+    final id = await _ref
+        .read(tripsRepositoryProvider)
+        .createTrip(
+          name: draft.name.trim(),
+          startDate: draft.startDate!,
+          endDate: draft.endDate!,
+          currency: draft.currency!,
+          myName: myName,
+          friendNames: List.of(draft.friends),
+        );
+    _ref.invalidate(myTripsProvider);
+    return id;
+  }
+
+  /// 목록을 다시 불러온다. 로그인이 실패해 있었다면 로그인부터 다시 한다.
+  void reloadTrips() {
+    if (_ref.read(authUserProvider).hasError) _ref.invalidate(authUserProvider);
+    _ref.invalidate(myTripsProvider);
+  }
 }

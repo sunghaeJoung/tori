@@ -54,24 +54,28 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+      // 이미 받은 목록이 있으면 새로고침 중이거나 새로고침이 실패해도 목록을 계속 보여준다.
       body: switch (trips) {
-        AsyncData(:final value) when value.isEmpty => const EmptyState(
-          title: '아직 여행이 없어요',
-          message: '새 여행을 만들고 친구들을 초대해보세요',
-        ),
-        AsyncData(:final value) => RefreshIndicator(
+        AsyncValue(hasValue: true, :final value?) when value.isEmpty =>
+          const EmptyState(
+            title: '아직 여행이 없어요',
+            message: '새 여행을 만들고 친구들을 초대해보세요',
+          ),
+        AsyncValue(hasValue: true, :final value?) => RefreshIndicator(
           onRefresh: () => ref.refresh(myTripsProvider.future),
           child: _TripList(trips: value),
         ),
-        AsyncError() => EmptyState(
+        AsyncValue(isLoading: true) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        _ => EmptyState(
           title: '여행을 불러오지 못했어요',
           message: '인터넷 연결을 확인해 주세요',
           action: FilledButton.tonal(
-            onPressed: () => ref.invalidate(myTripsProvider),
+            onPressed: () => ref.read(tripActionsProvider).reloadTrips(),
             child: const Text('다시 시도'),
           ),
         ),
-        _ => const Center(child: CircularProgressIndicator()),
       },
       bottomNavigationBar: BottomActions(
         children: [

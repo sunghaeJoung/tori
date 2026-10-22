@@ -13,7 +13,7 @@ class TripDraft {
 
   /// 1 이름 · 2 날짜 · 3 통화 · 4 멤버(나 말고 한 명 이상)
   bool canProceed(int step) => switch (step) {
-    1 => name.trim().isNotEmpty && name.trim().length <= Limits.tripName,
+    1 => name.trim().isNotEmpty && textLength(name.trim()) <= Limits.tripName,
     2 => startDate != null && endDate != null && !endDate!.isBefore(startDate!),
     3 => currency != null,
     4 => friends.isNotEmpty,
@@ -30,7 +30,7 @@ class TripDraft {
   String? addFriend(String rawName, {required String myName}) {
     final name = rawName.trim();
     if (name.isEmpty) return '이름을 입력해 주세요';
-    if (name.length > Limits.personName) {
+    if (textLength(name) > Limits.personName) {
       return '이름은 ${Limits.personName}자까지 쓸 수 있어요';
     }
     if (name == myName.trim() || friends.contains(name)) {

@@ -20,15 +20,20 @@ class NicknameNotifier extends Notifier<String?> {
     return _read(client.auth.currentUser);
   }
 
-  Future<void> save(String nickname) async {
+  /// 이름으로 쓸 수 있는지. 쓸 수 없으면 이유를 돌려준다.
+  static String? validate(String nickname) {
     final trimmed = nickname.trim();
-    if (trimmed.isEmpty || trimmed.length > Limits.personName) {
-      throw ArgumentError.value(
-        nickname,
-        'nickname',
-        '1~${Limits.personName}자',
-      );
+    if (trimmed.isEmpty) return '이름을 입력해 주세요';
+    if (textLength(trimmed) > Limits.personName) {
+      return '이름은 ${Limits.personName}자까지 쓸 수 있어요';
     }
+    return null;
+  }
+
+  Future<void> save(String nickname) async {
+    final error = validate(nickname);
+    if (error != null) throw ArgumentError.value(nickname, 'nickname', error);
+    final trimmed = nickname.trim();
     await ref.read(authUserProvider.future);
     final response = await ref
         .read(supabaseProvider)
@@ -37,8 +42,11 @@ class NicknameNotifier extends Notifier<String?> {
     state = _read(response.user);
   }
 
+  /// 저장된 값이 이름 규칙에 맞지 않으면(다른 기기·예전 버전 등) 없는 것으로 보고
+  /// 첫 실행 화면에서 다시 정하게 한다.
   static String? _read(User? user) {
     final value = user?.userMetadata?['nickname'];
-    return value is String && value.trim().isNotEmpty ? value : null;
+    if (value is! String || validate(value) != null) return null;
+    return value.trim();
   }
 }
