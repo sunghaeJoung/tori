@@ -115,6 +115,22 @@ void main() {
     expect(find.text('아직 여행이 없어요'), findsOneWidget);
   });
 
+  testWidgets('주소로 바로 들어와 첫 단계에서 뒤로를 누르면 홈으로', (tester) async {
+    await pumpApp(tester, location: Routes.newTrip);
+    await tester.tap(find.byTooltip('뒤로'));
+    await tester.pumpAndSettle();
+    expect(find.text('아직 여행이 없어요'), findsOneWidget);
+  });
+
+  testWidgets('여행 이름이 너무 길면 이유를 보여준다', (tester) async {
+    await pumpApp(tester, location: Routes.newTrip);
+    // 이모지 하나는 화면에선 한 글자지만 DB는 여러 글자로 센다
+    await tester.enterText(find.byType(TextField), '👨‍👩‍👧' * 9);
+    await tester.pump();
+    expect(find.text('여행 이름은 40자까지 쓸 수 있어요'), findsOneWidget);
+    expect(button(tester, '다음').onPressed, isNull);
+  });
+
   testWidgets('저장에 실패하면 안내하고 그 화면에 남는다', (tester) async {
     final repo = FakeTripsRepository();
     await pumpApp(tester, location: Routes.newTrip, repository: repo);

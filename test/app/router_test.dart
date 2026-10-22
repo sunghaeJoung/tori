@@ -46,6 +46,17 @@ void main() {
     expect(appBarTitle('나는 누구?'), findsOneWidget);
   });
 
+  testWidgets('이름이 DB 기준 20자를 넘으면 이유를 보여주고 못 누른다', (tester) async {
+    await pumpApp(tester, nickname: null);
+    await tester.enterText(find.byType(TextField), '👨‍👩‍👧' * 5);
+    await tester.pump();
+    expect(find.text('이름은 20자까지 쓸 수 있어요'), findsOneWidget);
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '시작하기'),
+    );
+    expect(button.onPressed, isNull);
+  });
+
   testWidgets('이름이 비어 있으면 시작하기를 못 누른다', (tester) async {
     await pumpApp(tester, nickname: null);
     final button = tester.widget<FilledButton>(
