@@ -64,6 +64,60 @@ class TripSummary {
   static DateTime _day(DateTime d) => DateTime.utc(d.year, d.month, d.day);
 }
 
+/// 여행 멤버.
+class Member {
+  const Member({required this.id, required this.name, this.userId});
+
+  factory Member.fromJson(Map<String, dynamic> json) => Member(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    userId: json['user_id'] as String?,
+  );
+
+  final String id;
+  final String name;
+
+  /// "나는 누구?"에서 이 이름을 고른 사용자. 아직 아무도 안 골랐으면 null.
+  final String? userId;
+}
+
+/// 여행방에서 쓰는 여행 정보와 멤버(순서대로).
+class TripDetail {
+  const TripDetail({
+    required this.id,
+    required this.name,
+    required this.startDate,
+    required this.endDate,
+    required this.currency,
+    required this.inviteCode,
+    required this.settled,
+    required this.members,
+  });
+
+  factory TripDetail.fromJson(Map<String, dynamic> json) => TripDetail(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    startDate: DateTime.parse(json['start_date'] as String),
+    endDate: DateTime.parse(json['end_date'] as String),
+    currency: Currency.fromCode(json['local_currency'] as String),
+    inviteCode: json['invite_code'] as String,
+    settled: json['settled_at'] != null,
+    members: [
+      for (final m in json['members'] as List)
+        Member.fromJson(m as Map<String, dynamic>),
+    ],
+  );
+
+  final String id;
+  final String name;
+  final DateTime startDate;
+  final DateTime endDate;
+  final Currency currency;
+  final String inviteCode;
+  final bool settled;
+  final List<Member> members;
+}
+
 class TripsRepository {
   const TripsRepository(this._client);
 
@@ -78,6 +132,20 @@ class TripsRepository {
         )
         .order('start_date', ascending: false);
     return rows.map(TripSummary.fromJson).toList();
+  }
+
+  /// 여행 하나와 멤버(순서대로). 내가 멤버가 아니면 RLS 때문에 찾지 못해 에러가 난다.
+  Future<TripDetail> tripDetail(String id) async {
+    final row = await _client
+        .from('trips')
+        .select(
+          'id, name, start_date, end_date, local_currency, invite_code, settled_at, '
+          'members(id, name, user_id, sort_order)',
+        )
+        .eq('id', id)
+        .order('sort_order', referencedTable: 'members')
+        .single();
+    return TripDetail.fromJson(row);
   }
 
   /// 여행을 만들고 id를 돌려준다. 멤버 순서는 나 → [friendNames] 순.

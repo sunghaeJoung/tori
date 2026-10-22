@@ -17,6 +17,15 @@ final myTripsProvider = FutureProvider<List<TripSummary>>((ref) async {
   return ref.watch(tripsRepositoryProvider).myTrips();
 });
 
+/// 여행 하나(멤버 포함).
+final tripDetailProvider = FutureProvider.family<TripDetail, String>((
+  ref,
+  tripId,
+) async {
+  await ref.watch(authUserProvider.future);
+  return ref.watch(tripsRepositoryProvider).tripDetail(tripId);
+});
+
 /// 여행 쓰기 작업. 화면이 아니라 provider의 ref를 써서, 저장 도중 화면이 닫혀도
 /// 목록 새로고침까지 끝까지 한다.
 final tripActionsProvider = Provider<TripActions>(TripActions.new);
