@@ -18,16 +18,15 @@ final myTripsProvider = FutureProvider<List<TripSummary>>((ref) async {
   return ref.watch(tripsRepositoryProvider).myTrips();
 });
 
-/// 여행 하나(멤버 포함).
-final tripDetailProvider = FutureProvider.family<TripDetail, String>((
-  ref,
-  tripId,
-) async {
-  await ref.watch(authUserProvider.future);
-  return ref.watch(tripsRepositoryProvider).tripDetail(tripId);
-});
+/// 여행 하나(멤버·정산 상태 포함). 친구가 정산하거나 송금 완료를 체크하면 다시 불러온다.
+final tripDetailProvider = FutureProvider.autoDispose
+    .family<TripDetail, String>((ref, tripId) async {
+      ref.watch(tripChangesProvider(tripId));
+      await ref.watch(authUserProvider.future);
+      return ref.watch(tripsRepositoryProvider).tripDetail(tripId);
+    });
 
-/// 친구들이 이 여행의 지출을 바꿀 때마다 1씩 오르는 숫자 (Supabase Realtime).
+/// 친구들이 이 여행을 바꿀 때마다(지출, 정산, 송금 완료) 1씩 오르는 숫자 (Supabase Realtime).
 /// watch하는 provider는 바뀔 때마다 다시 불러온다. 아무도 watch하지 않으면 구독을 끝낸다.
 final tripChangesProvider = NotifierProvider.autoDispose
     .family<TripChanges, int, String>(TripChanges.new);
