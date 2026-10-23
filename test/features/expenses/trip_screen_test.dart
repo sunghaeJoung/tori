@@ -22,10 +22,13 @@ void main() {
       expenses: FakeExpensesRepository(expenses: sampleExpenses()),
     );
 
+    // 776.00위안 × 192.35 + 900,000원 = 1,049,263.6원
+    expect(find.text('총 지출 (오늘 환율 기준)'), findsOneWidget);
+    expect(find.text('약 1,049,260원'), findsOneWidget);
     expect(find.text('776.00위안 + 900,000원'), findsOneWidget);
-    // 민지: 680.00 낸 - (48.00 + 226.67) = +405.33위안, 원화는 -300,000원
-    expect(find.text('+405.33위안'), findsOneWidget);
-    expect(find.text('-300,000원'), findsOneWidget);
+    // 민지: +405.33위안 × 192.35 - 300,000원 = -222,034.77원
+    expect(find.text('-222,030원'), findsOneWidget);
+    expect(find.text(' · 줄 돈'), findsOneWidget);
 
     expect(find.text('11월 7일 (토)'), findsOneWidget);
     expect(find.text('11월 6일 (금)'), findsOneWidget);
@@ -33,6 +36,20 @@ void main() {
     expect(find.text('내 몫 48.00위안'), findsOneWidget);
     expect(find.text('수아 결제 · 3명'), findsOneWidget);
     expect(find.text('내 몫 300,000원'), findsOneWidget);
+  });
+
+  testWidgets('환율을 못 불러오면 통화별로 보여준다', (tester) async {
+    usePhoneSize(tester);
+    await pumpApp(
+      tester,
+      location: Routes.trip('t1'),
+      expenses: FakeExpensesRepository(expenses: sampleExpenses()),
+      rateError: Exception('오프라인'),
+    );
+    expect(find.text('총 지출'), findsOneWidget);
+    expect(find.text('776.00위안 + 900,000원'), findsOneWidget);
+    expect(find.text('+405.33위안'), findsOneWidget);
+    expect(find.text('-300,000원'), findsOneWidget);
   });
 
   testWidgets('내가 안 나눈 지출은 "참여 안 함"', (tester) async {

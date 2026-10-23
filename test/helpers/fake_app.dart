@@ -1,10 +1,13 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
+import 'package:tori/core/exchange_rate/frankfurter_api.dart';
 import 'package:tori/core/money/currency.dart';
+import 'package:tori/core/money/settlement.dart';
 import 'package:tori/core/supabase/supabase_client.dart';
 import 'package:tori/features/expenses/data/expense.dart';
 import 'package:tori/features/expenses/data/expenses_repository.dart';
@@ -12,6 +15,9 @@ import 'package:tori/features/expenses/providers.dart';
 import 'package:tori/features/invite/data/invite_repository.dart';
 import 'package:tori/features/invite/providers.dart';
 import 'package:tori/features/onboarding/providers.dart';
+import 'package:tori/features/settlement/data/settlement.dart';
+import 'package:tori/features/settlement/data/settlement_repository.dart';
+import 'package:tori/features/settlement/providers.dart';
 import 'package:tori/features/trips/data/trip.dart';
 import 'package:tori/features/trips/data/trips_repository.dart';
 import 'package:tori/features/trips/providers.dart';
@@ -49,6 +55,11 @@ class FakeTripsRepository implements TripsRepository {
 
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
+
+  /// 여행방 't1'의 현지 통화와 정산 상태.
+  Currency currency = Currency.cny;
+  ExchangeRate? settledRate;
+  bool settlementStale = false;
 
   final _listeners = <void Function()>[];
 
@@ -102,9 +113,10 @@ class FakeTripsRepository implements TripsRepository {
       name: created.isEmpty ? '상하이 우정여행' : created.last.name,
       startDate: DateTime(2026, 11, 6),
       endDate: DateTime(2026, 11, 9),
-      currency: Currency.cny,
+      currency: currency,
       inviteCode: 'TR7K2QAB',
-      settled: false,
+      settledRate: settledRate,
+      settlementStale: settlementStale,
       members: [
         for (final (id, name) in sampleMembers)
           Member(id: id, name: name, userId: id == 'm1' ? fakeUser.id : null),
@@ -270,6 +282,72 @@ List<Expense> sampleExpenses() => [
   ),
 ];
 
+/// 정산 저장소 가짜. 확정하면 [trips]의 여행 't1'이 정산된 상태가 된다.
+class FakeSettlementRepository implements SettlementRepository {
+  FakeSettlementRepository(this.trips);
+
+  final FakeTripsRepository trips;
+
+  /// 저장소에 있는 송금 목록.
+  final saved = <SettlementTransfer>[];
+  final confirmed = <(ExchangeRate rate, List<Transfer> transfers)>[];
+
+  /// 값이 있으면 모든 요청이 이 에러로 실패한다.
+  Object? failWith;
+
+  @override
+  Future<List<SettlementTransfer>> transfers(String tripId) async {
+    if (failWith != null) throw failWith!;
+    return List.of(saved);
+  }
+
+  @override
+  Future<void> confirm(
+    String tripId,
+    ExchangeRate rate,
+    List<Transfer> plan,
+  ) async {
+    if (failWith != null) throw failWith!;
+    confirmed.add((rate, plan));
+    trips
+      ..settledRate = rate
+      ..settlementStale = false;
+    saved
+      ..clear()
+      ..addAll([
+        for (final (i, t) in plan.indexed)
+          SettlementTransfer(
+            id: 's$i',
+            from: t.from,
+            to: t.to,
+            amountKrw: t.amountKrw,
+            done: false,
+          ),
+      ]);
+  }
+
+  @override
+  Future<void> setDone(String transferId, {required bool done}) async {
+    if (failWith != null) throw failWith!;
+    final i = saved.indexWhere((t) => t.id == transferId);
+    final t = saved[i];
+    saved[i] = SettlementTransfer(
+      id: t.id,
+      from: t.from,
+      to: t.to,
+      amountKrw: t.amountKrw,
+      done: done,
+    );
+  }
+}
+
+/// 테스트의 오늘 환율: 1위안 = 192.35원 (2026-11-09 기준).
+final sampleRate = ExchangeRate(
+  currency: Currency.cny,
+  krwPerUnit: Decimal.parse('192.35'),
+  date: DateTime(2026, 11, 9),
+);
+
 final fakeUser = User(
   id: 'user-1',
   appMetadata: const {},
@@ -299,6 +377,7 @@ TripSummary sampleTrip({
 );
 
 /// 앱을 띄우고, [location]이 있으면 그 주소로 이동한다.
+/// 오늘 환율은 [sampleRate]. [rateError]를 주면 환율을 못 불러온다.
 /// 다른 가짜가 필요하면 [overrides]로 넘긴다.
 Future<void> pumpApp(
   WidgetTester tester, {
@@ -307,6 +386,8 @@ Future<void> pumpApp(
   FakeTripsRepository? repository,
   FakeInviteRepository? invites,
   FakeExpensesRepository? expenses,
+  FakeSettlementRepository? settlements,
+  Object? rateError,
   List<Override> overrides = const [],
 }) async {
   final repo = repository ?? FakeTripsRepository();
@@ -321,6 +402,15 @@ Future<void> pumpApp(
       expensesRepositoryProvider.overrideWithValue(
         expenses ?? FakeExpensesRepository(),
       ),
+      settlementRepositoryProvider.overrideWithValue(
+        settlements ?? FakeSettlementRepository(repo),
+      ),
+      latestRateProvider.overrideWith((ref, currency) async {
+        if (rateError != null) throw rateError;
+        return currency == Currency.cny
+            ? sampleRate
+            : throw UnimplementedError('테스트 환율은 위안만');
+      }),
       todayProvider.overrideWithValue(testToday),
       ...overrides,
     ],
