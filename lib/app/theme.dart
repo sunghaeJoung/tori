@@ -25,6 +25,10 @@ abstract final class ToriColors {
 
   /// 줄 돈.
   static const pay = Color(0xFFC42F2F);
+
+  /// 경고 띠(정산을 다시 해주세요 등)의 배경과 글자.
+  static const payBackground = Color(0xFFFBE9E9);
+  static const payText = Color(0xFF8F1F1F);
   static const danger = Color(0xFFB42626);
 
   static const acornCap = Color(0xFF5E3B1C);
