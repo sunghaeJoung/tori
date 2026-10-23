@@ -47,7 +47,12 @@ void main() {
   );
 
   test('3-5 예시: 여행 지출로 정산하면 568,010 / 325,550 / 49,060원', () {
-    final balances = TripBalances(all, expenses, local: Currency.cny);
+    final balances = TripBalances(
+      all,
+      expenses,
+      local: Currency.cny,
+      expensesVersion: 'v1',
+    );
     expect(balances.plan(rate), [
       (from: j, to: s, amountKrw: 568010),
       (from: m, to: h, amountKrw: 325550),
@@ -56,7 +61,12 @@ void main() {
   });
 
   test('통화별 총 지출과 원화 환산 총액', () {
-    final balances = TripBalances(all, expenses, local: Currency.cny);
+    final balances = TripBalances(
+      all,
+      expenses,
+      local: Currency.cny,
+      expensesVersion: 'v1',
+    );
     // 현지 통화(위안)가 먼저
     expect(balances.totals.keys, [Currency.cny, Currency.krw]);
     expect(balances.totals, {Currency.cny: 615950, Currency.krw: 1200000});
@@ -65,8 +75,33 @@ void main() {
     expect(balances.inKrw(rate)[j], Decimal.parse('-568014.7195'));
   });
 
+  test('총 지출 표기: 환산은 약, 원화 여행은 정확히', () {
+    final balances = TripBalances(
+      all,
+      expenses,
+      local: Currency.cny,
+      expensesVersion: 'v1',
+    );
+    expect(balances.totalLabel(rate), '약 2,384,780원');
+    final won = TripBalances(
+      all,
+      [e('항공권', 1200005, Currency.krw, s, even(1200005, all))],
+      local: Currency.krw,
+      expensesVersion: 'v1',
+    );
+    expect(
+      won.totalLabel(ExchangeRate.won(DateTime(2026, 11, 9))),
+      '1,200,005원',
+    );
+  });
+
   test('지출이 없으면 비어 있고 보낼 돈도 없다', () {
-    final balances = TripBalances(all, const [], local: Currency.cny);
+    final balances = TripBalances(
+      all,
+      const [],
+      local: Currency.cny,
+      expensesVersion: 'v1',
+    );
     expect(balances.isEmpty, isTrue);
     expect(balances.plan(rate), isEmpty);
   });

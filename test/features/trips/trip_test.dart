@@ -37,7 +37,6 @@ void main() {
       endDate: DateTime(2026, 11, 9),
       currency: Currency.cny,
       inviteCode: 'ABCD2345',
-      expensesVersion: '2026-11-07T00:00:00+00:00',
       members: const [
         Member(id: 'm1', name: '민지', userId: 'u1'),
         Member(id: 'm2', name: '수아'),

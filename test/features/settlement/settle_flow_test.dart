@@ -9,7 +9,13 @@ import 'package:tori/features/trips/ui/trip_tab.dart';
 import '../../helpers/fake_app.dart';
 
 void main() {
-  Future<({FakeTripsRepository trips, FakeSettlementRepository settlements})>
+  Future<
+    ({
+      FakeTripsRepository trips,
+      FakeExpensesRepository expenses,
+      FakeSettlementRepository settlements,
+    })
+  >
   openTrip(
     WidgetTester tester, {
     TripTab tab = TripTab.settle,
@@ -17,16 +23,17 @@ void main() {
   }) async {
     usePhoneSize(tester);
     final trips = FakeTripsRepository();
-    final settlements = FakeSettlementRepository(trips);
+    final expenses = FakeExpensesRepository(expenses: sampleExpenses());
+    final settlements = FakeSettlementRepository(trips, expenses);
     await pumpApp(
       tester,
       location: Routes.trip('t1', tab: tab),
       repository: trips,
-      expenses: FakeExpensesRepository(expenses: sampleExpenses()),
+      expenses: expenses,
       settlements: settlements,
       rateError: rateError,
     );
-    return (trips: trips, settlements: settlements);
+    return (trips: trips, expenses: expenses, settlements: settlements);
   }
 
   testWidgets('잔액 탭: 오늘 환율로 원화 환산, 내 행 표시', (tester) async {
@@ -85,11 +92,27 @@ void main() {
     expect(find.textContaining('3명이 함께 쓴'), findsOneWidget);
   });
 
+  testWidgets('송금 완료를 빠르게 두 번 눌러도 한 번만 보낸다', (tester) async {
+    final fakes = await openTrip(tester);
+    await tapButton<FilledButton>(tester, '정산 시작하기');
+    await tapButton<FilledButton>(tester, '이 환율로 정산하기');
+
+    tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, '송금 완료').first,
+          )
+          .onPressed!
+      ..call()
+      ..call();
+    await tester.pumpAndSettle();
+    expect(fakes.settlements.setDoneCalls, 1);
+  });
+
   testWidgets('계산하는 사이 지출이 바뀌면 확정하지 않고 다시 확인하게 한다', (tester) async {
     final fakes = await openTrip(tester);
     await tapButton<FilledButton>(tester, '정산 시작하기');
 
-    fakes.trips.expensesVersion = '2026-11-07T01:00:00+00:00'; // 친구가 지출을 고침
+    fakes.expenses.version = '2026-11-07T01:00:00+00:00'; // 친구가 지출을 고침
     await tapButton<FilledButton>(tester, '이 환율로 정산하기');
     expect(fakes.settlements.confirmed, isEmpty);
     expect(find.text('그사이 지출이 바뀌었어요. 총액을 다시 확인하고 정산해 주세요'), findsOneWidget);
@@ -161,15 +184,16 @@ void main() {
   testWidgets('원화 여행은 환율 없이 정산', (tester) async {
     usePhoneSize(tester);
     final trips = FakeTripsRepository()..currency = Currency.krw;
-    final settlements = FakeSettlementRepository(trips);
+    final expenses = FakeExpensesRepository(
+      expenses: [sampleExpenses().last], // 항공권 900,000원, 수아 결제
+    );
+    final settlements = FakeSettlementRepository(trips, expenses);
     await pumpApp(
       tester,
       location: Routes.rate('t1'),
       repository: trips,
       settlements: settlements,
-      expenses: FakeExpensesRepository(
-        expenses: [sampleExpenses().last], // 항공권 900,000원, 수아 결제
-      ),
+      expenses: expenses,
     );
     expect(find.text('환율 없이 바로 정산해요'), findsOneWidget);
     expect(find.text('환율 직접 입력하기'), findsNothing);

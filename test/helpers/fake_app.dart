@@ -61,9 +61,6 @@ class FakeTripsRepository implements TripsRepository {
   ExchangeRate? settledRate;
   bool settlementStale = false;
 
-  /// 지출 버전 (trips.expenses_changed_at). 바꾸면 그 전 버전으로 한 정산 확정은 거절된다.
-  String expensesVersion = '2026-11-07T00:00:00+00:00';
-
   final _listeners = <void Function({required bool expenses})>[];
 
   /// 지금 실시간 구독 중인 곳 수.
@@ -124,7 +121,6 @@ class FakeTripsRepository implements TripsRepository {
       inviteCode: 'TR7K2QAB',
       settledRate: settledRate,
       settlementStale: settlementStale,
-      expensesVersion: expensesVersion,
       members: [
         for (final (id, name) in sampleMembers)
           Member(id: id, name: name, userId: id == 'm1' ? fakeUser.id : null),
@@ -194,14 +190,17 @@ class FakeExpensesRepository implements ExpensesRepository {
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
 
+  /// 지출 버전 (trips.expenses_changed_at). 바꾸면 그 전 버전으로 한 정산 확정은 거절된다.
+  String version = '2026-11-07T00:00:00+00:00';
+
   /// 지출 목록을 불러온 횟수.
   var listCalls = 0;
 
   @override
-  Future<List<Expense>> list(String tripId) async {
+  Future<TripExpenses> list(String tripId) async {
     listCalls++;
     if (failWith != null) throw failWith!;
-    return List.of(expenses);
+    return TripExpenses(List.of(expenses), version: version);
   }
 
   @override
@@ -295,10 +294,12 @@ List<Expense> sampleExpenses() => [
 ];
 
 /// 정산 저장소 가짜. 확정하면 [trips]의 여행 't1'이 정산된 상태가 된다.
+/// [expenses]의 지출 버전과 다른 버전으로 확정하면 거절한다.
 class FakeSettlementRepository implements SettlementRepository {
-  FakeSettlementRepository(this.trips);
+  FakeSettlementRepository(this.trips, this.expenses);
 
   final FakeTripsRepository trips;
+  final FakeExpensesRepository expenses;
 
   /// 저장소에 있는 송금 목록.
   final saved = <SettlementTransfer>[];
@@ -321,7 +322,7 @@ class FakeSettlementRepository implements SettlementRepository {
     required List<Transfer> transfers,
   }) async {
     if (failWith != null) throw failWith!;
-    if (expensesVersion != trips.expensesVersion) {
+    if (expensesVersion != expenses.version) {
       throw const ExpensesChangedDuringSettlement();
     }
     final plan = transfers;
@@ -343,8 +344,12 @@ class FakeSettlementRepository implements SettlementRepository {
       ]);
   }
 
+  /// 송금 완료 체크를 바꾼 횟수.
+  var setDoneCalls = 0;
+
   @override
   Future<void> setDone(String transferId, {required bool done}) async {
+    setDoneCalls++;
     if (failWith != null) throw failWith!;
     final i = saved.indexWhere((t) => t.id == transferId);
     final t = saved[i];
@@ -408,6 +413,7 @@ Future<void> pumpApp(
   List<Override> overrides = const [],
 }) async {
   final repo = repository ?? FakeTripsRepository();
+  final expenseRepo = expenses ?? FakeExpensesRepository();
   final container = ProviderContainer(
     // 실패한 provider를 저절로 다시 시도하지 않는다 (테스트가 끝난 뒤 타이머가 남지 않게)
     retry: (_, _) => null,
@@ -418,11 +424,9 @@ Future<void> pumpApp(
       inviteRepositoryProvider.overrideWithValue(
         invites ?? FakeInviteRepository(),
       ),
-      expensesRepositoryProvider.overrideWithValue(
-        expenses ?? FakeExpensesRepository(),
-      ),
+      expensesRepositoryProvider.overrideWithValue(expenseRepo),
       settlementRepositoryProvider.overrideWithValue(
-        settlements ?? FakeSettlementRepository(repo),
+        settlements ?? FakeSettlementRepository(repo, expenseRepo),
       ),
       latestRateProvider.overrideWith((ref, currency) async {
         if (rateError != null) throw rateError;
