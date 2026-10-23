@@ -36,6 +36,14 @@ abstract final class ToriColors {
   static const acornFace = Color(0xFF3A2412);
 }
 
+/// 카드 속 큰 금액 (총 지출, 송금액). 숫자 폭을 맞춘다.
+const amountLargeStyle = TextStyle(
+  fontSize: 26,
+  fontWeight: FontWeight.w800,
+  letterSpacing: -0.5,
+  fontFeatures: [FontFeature.tabularFigures()],
+);
+
 final ThemeData toriTheme = _buildToriTheme();
 
 ThemeData _buildToriTheme() {

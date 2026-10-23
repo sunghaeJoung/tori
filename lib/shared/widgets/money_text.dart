@@ -24,13 +24,14 @@ class MoneyText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final formatted = formatMoney(amount, currency);
     final color = !balance || amount == 0
         ? null
         : (amount > 0 ? ToriColors.receive : ToriColors.pay);
 
     return Text(
-      balance && amount > 0 ? '+$formatted' : formatted,
+      balance
+          ? formatSignedMoney(amount, currency)
+          : formatMoney(amount, currency),
       style: (style ?? const TextStyle()).copyWith(
         color: color,
         fontFeatures: const [FontFeature.tabularFigures()],
