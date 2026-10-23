@@ -81,7 +81,7 @@ void main() {
     );
     await tester.tap(find.text('상하이 우정여행'));
     await tester.pumpAndSettle();
-    expect(appBarTitle('여행방'), findsOneWidget);
+    expect(inTripRoom, findsOneWidget);
   });
 
   testWidgets('불러오기에 실패하면 다시 시도할 수 있다', (tester) async {

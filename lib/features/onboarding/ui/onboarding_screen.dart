@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../shared/limits.dart';
+import '../../../shared/messages.dart';
 import '../../../shared/widgets/labeled_field.dart';
 import '../../../shared/widgets/tori_mascot.dart';
 import '../../../shared/widgets/tori_wordmark.dart';
@@ -33,9 +34,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     } catch (e) {
       debugPrint('닉네임 저장 실패: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요')),
-      );
+      ScaffoldMessenger.of(context).showMessage('저장하지 못했어요. $retryHint');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

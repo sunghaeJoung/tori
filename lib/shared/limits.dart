@@ -6,6 +6,9 @@ abstract final class Limits {
   /// trips.name
   static const tripName = 40;
 
+  /// expenses.title
+  static const expenseTitle = 40;
+
   /// create_trip RPC
   static const members = 20;
 }

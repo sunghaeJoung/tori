@@ -27,6 +27,26 @@ final tripDetailProvider = FutureProvider.family<TripDetail, String>((
   return ref.watch(tripsRepositoryProvider).tripDetail(tripId);
 });
 
+/// 친구들이 이 여행의 지출을 바꿀 때마다 1씩 오르는 숫자 (Supabase Realtime).
+/// watch하는 provider는 바뀔 때마다 다시 불러온다. 아무도 watch하지 않으면 구독을 끝낸다.
+final tripChangesProvider = NotifierProvider.autoDispose
+    .family<TripChanges, int, String>(TripChanges.new);
+
+class TripChanges extends Notifier<int> {
+  TripChanges(this.tripId);
+
+  final String tripId;
+
+  @override
+  int build() {
+    final stop = ref
+        .watch(tripsRepositoryProvider)
+        .watchChanges(tripId, () => state++);
+    ref.onDispose(stop);
+    return 0;
+  }
+}
+
 /// 여행 쓰기 작업. 화면이 아니라 provider의 ref를 써서, 저장 도중 화면이 닫혀도
 /// 목록 새로고침까지 끝까지 한다.
 final tripActionsProvider = Provider<TripActions>(TripActions.new);

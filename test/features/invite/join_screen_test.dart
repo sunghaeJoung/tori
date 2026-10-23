@@ -32,7 +32,7 @@ void main() {
     await tapButton<FilledButton>(tester, '지훈으로 참여하기');
 
     expect(invites.joined.single, ('ABCD2345', 'm3'));
-    expect(appBarTitle('여행방'), findsOneWidget);
+    expect(inTripRoom, findsOneWidget);
   });
 
   testWidgets('이미 들어온 이름을 고르면 주의 문구', (tester) async {

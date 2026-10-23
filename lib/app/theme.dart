@@ -15,6 +15,7 @@ abstract final class ToriColors {
   static const tile = Color(0xFFF4EEE6);
   static const disabled = Color(0xFFE6DFD5);
   static const mutedBadge = Color(0xFFEFEBE5);
+  static const keypad = Color(0xFFF6F1EA);
 
   static const accent = Color(0xFF7A4B22);
   static const accentSoft = Color(0xFFF2E7D9);
@@ -105,6 +106,13 @@ ThemeData _buildToriTheme() {
         disabledBackgroundColor: ToriColors.disabled,
         disabledForegroundColor: ToriColors.textSub,
       ),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: ToriColors.accent,
+      foregroundColor: ToriColors.surface,
+      extendedTextStyle: text.bodyLarge!.copyWith(fontWeight: FontWeight.w700),
+      extendedSizeConstraints: const BoxConstraints.tightFor(height: 60),
+      shape: const StadiumBorder(),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(

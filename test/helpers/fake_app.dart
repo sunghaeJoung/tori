@@ -6,6 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
 import 'package:tori/core/money/currency.dart';
 import 'package:tori/core/supabase/supabase_client.dart';
+import 'package:tori/features/expenses/data/expense.dart';
+import 'package:tori/features/expenses/data/expenses_repository.dart';
+import 'package:tori/features/expenses/providers.dart';
 import 'package:tori/features/invite/data/invite_repository.dart';
 import 'package:tori/features/invite/providers.dart';
 import 'package:tori/features/onboarding/providers.dart';
@@ -37,6 +40,7 @@ typedef CreatedTrip = ({
   List<String> friendNames,
 });
 
+/// 여행 저장소 가짜. [emitChange]로 친구가 지출을 바꾼 것처럼 실시간 알림을 보낸다.
 class FakeTripsRepository implements TripsRepository {
   FakeTripsRepository({List<TripSummary>? trips}) : trips = trips ?? [];
 
@@ -45,6 +49,23 @@ class FakeTripsRepository implements TripsRepository {
 
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
+
+  final _listeners = <void Function()>[];
+
+  /// 지금 실시간 구독 중인 곳 수.
+  int get watching => _listeners.length;
+
+  void emitChange() {
+    for (final listener in List.of(_listeners)) {
+      listener();
+    }
+  }
+
+  @override
+  void Function() watchChanges(String tripId, void Function() onChange) {
+    _listeners.add(onChange);
+    return () => _listeners.remove(onChange);
+  }
 
   @override
   Future<List<TripSummary>> myTrips() async {
@@ -130,6 +151,125 @@ class FakeInviteRepository implements InviteRepository {
   }
 }
 
+typedef SavedExpense = ({
+  String? expenseId,
+  String title,
+  int amount,
+  Currency currency,
+  String paidBy,
+  ExpenseCategory category,
+  DateTime spentAt,
+  Map<String, int> shares,
+});
+
+/// 지출 저장소 가짜.
+class FakeExpensesRepository implements ExpensesRepository {
+  FakeExpensesRepository({List<Expense>? expenses}) : expenses = expenses ?? [];
+
+  /// 저장소에 있는 지출 (화면에 보일 순서대로).
+  final List<Expense> expenses;
+  final saved = <SavedExpense>[];
+  final deleted = <String>[];
+
+  /// 값이 있으면 모든 요청이 이 에러로 실패한다.
+  Object? failWith;
+
+  @override
+  Future<List<Expense>> list(String tripId) async {
+    if (failWith != null) throw failWith!;
+    return List.of(expenses);
+  }
+
+  @override
+  Future<String> save({
+    required String tripId,
+    String? expenseId,
+    required String title,
+    required int amount,
+    required Currency currency,
+    required String paidBy,
+    required ExpenseCategory category,
+    required DateTime spentAt,
+    required Map<String, int> shares,
+  }) async {
+    if (failWith != null) throw failWith!;
+    final index = expenses.indexWhere((e) => e.id == expenseId);
+    if (expenseId != null && index < 0) {
+      throw const ExpenseNotFound();
+    }
+    saved.add((
+      expenseId: expenseId,
+      title: title,
+      amount: amount,
+      currency: currency,
+      paidBy: paidBy,
+      category: category,
+      spentAt: spentAt,
+      shares: Map.of(shares),
+    ));
+    final expense = Expense(
+      id: expenseId ?? 'new-${saved.length}',
+      title: title,
+      amount: amount,
+      currency: currency,
+      paidBy: paidBy,
+      category: category,
+      spentAt: spentAt,
+      shares: Map.of(shares),
+    );
+    if (index < 0) {
+      expenses.insert(0, expense);
+    } else {
+      expenses[index] = expense;
+    }
+    return expense.id;
+  }
+
+  @override
+  Future<void> delete(String expenseId) async {
+    if (failWith != null) throw failWith!;
+    deleted.add(expenseId);
+    expenses.removeWhere((e) => e.id == expenseId);
+  }
+}
+
+/// 여행 't1'의 지출 (최근 날짜 순). 나 = 민지(m1).
+/// - 11/7 맥주 96.00위안, 지훈 결제, 민지·지훈
+/// - 11/6 훠궈 저녁 680.00위안, 민지 결제, 3명
+/// - 11/6 항공권 900,000원, 수아 결제, 3명
+List<Expense> sampleExpenses() => [
+  Expense(
+    id: 'e3',
+    title: '맥주',
+    amount: 9600,
+    currency: Currency.cny,
+    paidBy: 'm3',
+    category: ExpenseCategory.drink,
+    spentAt: DateTime(2026, 11, 7),
+    shares: const {'m1': 4800, 'm3': 4800},
+  ),
+  Expense(
+    id: 'e1',
+    title: '훠궈 저녁',
+    amount: 68000,
+    currency: Currency.cny,
+    paidBy: 'm1',
+    category: ExpenseCategory.food,
+    spentAt: DateTime(2026, 11, 6),
+    shares: const {'m1': 22667, 'm2': 22667, 'm3': 22666},
+  ),
+  Expense(
+    id: 'e2',
+    title: '항공권',
+    amount: 900000,
+    currency: Currency.krw,
+    paidBy: 'm2',
+    category: ExpenseCategory.transport,
+    spentAt: DateTime(2026, 11, 6),
+    shares: const {'m1': 300000, 'm2': 300000, 'm3': 300000},
+  ),
+];
+
 final fakeUser = User(
   id: 'user-1',
   appMetadata: const {},
@@ -166,6 +306,7 @@ Future<void> pumpApp(
   String? nickname = '민지',
   FakeTripsRepository? repository,
   FakeInviteRepository? invites,
+  FakeExpensesRepository? expenses,
   List<Override> overrides = const [],
 }) async {
   final repo = repository ?? FakeTripsRepository();
@@ -176,6 +317,9 @@ Future<void> pumpApp(
       tripsRepositoryProvider.overrideWithValue(repo),
       inviteRepositoryProvider.overrideWithValue(
         invites ?? FakeInviteRepository(),
+      ),
+      expensesRepositoryProvider.overrideWithValue(
+        expenses ?? FakeExpensesRepository(),
       ),
       todayProvider.overrideWithValue(testToday),
       ...overrides,
@@ -189,8 +333,27 @@ Future<void> pumpApp(
   await tester.pumpAndSettle();
 }
 
+/// 휴대폰 크기(390×844)로 띄운다. 테스트가 끝나면 되돌린다.
+void usePhoneSize(WidgetTester tester) {
+  tester.view
+    ..physicalSize = const Size(1170, 2532)
+    ..devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+}
+
+/// 가짜 여행 't1'의 여행방 화면인가 (제목이 여행 이름).
+Finder get inTripRoom => appBarTitle('상하이 우정여행');
+
 Finder appBarTitle(String title) =>
     find.descendant(of: find.byType(AppBar), matching: find.text(title));
+
+/// 글자를 눌러 한 프레임 그린다 (스크롤 안쪽이면 먼저 보이게 한다).
+/// 같은 글자가 여럿이면 마지막 것.
+Future<void> tapText(WidgetTester tester, String text) async {
+  await tester.ensureVisible(find.text(text).last);
+  await tester.tap(find.text(text).last);
+  await tester.pump();
+}
 
 Future<void> tapButton<T extends Widget>(
   WidgetTester tester,

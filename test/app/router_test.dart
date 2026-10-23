@@ -65,33 +65,41 @@ void main() {
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('여행방 → 지출 추가 → 저장하면 여행방으로 돌아온다', (tester) async {
+  testWidgets('여행방 → 지출 추가 → 닫으면 여행방으로 돌아온다', (tester) async {
     await pumpApp(tester, location: Routes.trip('t1'));
-    await tapButton<FilledButton>(tester, '지출 추가');
+    await tester.tap(find.text('지출 추가'));
+    await tester.pumpAndSettle();
     expect(appBarTitle('지출 추가'), findsOneWidget);
 
-    await tapButton<FilledButton>(tester, '저장');
-    expect(appBarTitle('여행방'), findsOneWidget);
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    expect(inTripRoom, findsOneWidget);
   });
 
-  testWidgets('여행방 → 정산 환율 → 취소하면 여행방으로 돌아온다', (tester) async {
-    await pumpApp(tester, location: Routes.trip('t1'));
-    await tapButton<TextButton>(tester, '정산하기');
-    expect(appBarTitle('정산 환율 확인'), findsOneWidget);
+  group('주소로 바로 들어가기', () {
+    testWidgets('여행 만들기', (tester) async {
+      await pumpApp(tester, location: Routes.newTrip);
+      expect(find.text('여행 이름을 정해주세요'), findsOneWidget);
+    });
 
-    await tapButton<TextButton>(tester, '취소');
-    expect(appBarTitle('여행방'), findsOneWidget);
-  });
+    testWidgets('나는 누구?', (tester) async {
+      await pumpApp(tester, location: Routes.join('ABCD2345'));
+      expect(find.text('나는 누구인가요?'), findsOneWidget);
+    });
 
-  testWidgets('주소로 바로 들어가기', (tester) async {
-    await pumpApp(tester, location: Routes.newTrip);
-    expect(find.text('여행 이름을 정해주세요'), findsOneWidget);
+    testWidgets('지출 수정', (tester) async {
+      await pumpApp(
+        tester,
+        location: Routes.expense('t1', 'e1'),
+        expenses: FakeExpensesRepository(expenses: sampleExpenses()),
+      );
+      expect(appBarTitle('지출 수정'), findsOneWidget);
+    });
 
-    await pumpApp(tester, location: Routes.join('ABCD2345'));
-    expect(find.text('나는 누구인가요?'), findsOneWidget);
-
-    await pumpApp(tester, location: Routes.expense('t1', 'e1'));
-    expect(appBarTitle('지출 수정'), findsOneWidget);
+    testWidgets('정산 환율', (tester) async {
+      await pumpApp(tester, location: Routes.rate('t1'));
+      expect(appBarTitle('정산 환율 확인'), findsOneWidget);
+    });
   });
 
   testWidgets('없는 주소는 안내 화면 → 홈으로', (tester) async {

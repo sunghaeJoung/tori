@@ -42,6 +42,7 @@ trips 1 ──── N settlements
 | settle_rate          | numeric           | 확정 환율 (현지 통화 1단위 → 원). 확정 전엔 null |
 | settle_rate_date     | date              | 환율 기준일                                      |
 | settled_at           | timestamptz       | 정산을 확정한 시각                               |
+| expenses_changed_at  | timestamptz       | 지출이 마지막으로 바뀐 시각 (트리거가 갱신)      |
 | invite_code          | text unique       | 8자리 초대 코드 (암호학적 난수)                  |
 | created_by           | uuid → auth.users |                                                  |
 | created_at           | timestamptz       |                                                  |
@@ -115,7 +116,11 @@ trips 1 ──── N settlements
   - 브라우저를 바꿔 다시 들어온 친구가 자기 이름을 다시 고를 수 있도록, 이미 연결된 멤버도 다시 연결할 수 있게 허용한다 (초대 코드를 아는 친구끼리의 신뢰를 전제로 한 선택)
 - 여행을 만든 사람은 만들 때 자기 멤버에 바로 연결된다
   - 여행·멤버는 직접 insert할 수 없고 `create_trip(이름, 기간, 통화, 내 이름, 친구 이름들)` RPC로만 만든다. 멤버 순서는 나 → 친구들 입력 순서
+- 지출과 분배는 `save_expense(여행, 지출 id 또는 null, 내용, 금액, 통화, 낸 사람, 카테고리, 날짜, 멤버 id들, 부담액들)` RPC로만 추가·수정한다. 한 트랜잭션이라 반쯤 저장된 지출이 없다. 지우기는 `expenses` delete (분배는 cascade)
 - 고칠 수 있는 열만 열어둔다: 초대 코드·만든 사람·소속 여행은 바꿀 수 없다
+- 실시간 반영: 지출이 바뀌면 트리거가 `trips.expenses_changed_at`을 갱신하고, 앱은 여행 행 하나만 Supabase Realtime으로 구독해 바뀌면 지출을 다시 불러온다
+  - Realtime의 delete 이벤트는 필터·RLS가 적용되지 않아 지출 테이블을 직접 구독하지 않는다
+  - 7단계에서 정산 뒤 지출이 바뀌었는지(`settled_at`과 비교) 판단하는 데도 쓴다
 - 마이그레이션은 `supabase/migrations/`에 두고 `supabase db push`로 적용한다. RLS 점검은 `dart run tool/rls_check.dart`
 
 ## 3. 정산 알고리즘
