@@ -106,6 +106,13 @@ ThemeData _buildToriTheme() {
         disabledForegroundColor: ToriColors.textSub,
       ),
     ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: ToriColors.accent,
+      foregroundColor: ToriColors.surface,
+      extendedTextStyle: text.bodyLarge!.copyWith(fontWeight: FontWeight.w700),
+      extendedSizeConstraints: const BoxConstraints.tightFor(height: 60),
+      shape: const StadiumBorder(),
+    ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(44, 52),
