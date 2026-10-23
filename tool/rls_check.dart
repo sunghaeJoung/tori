@@ -164,6 +164,26 @@ Future<void> main(List<String> args) async {
     '입장한 B는 여행을 본다',
     (jsonDecode((await b.get('trips', 'id=eq.$id')).body) as List).length == 1,
   );
+  final detail = jsonDecode(
+    (await b.get(
+      'trips',
+      'id=eq.$id&select=id,name,invite_code,members(id,name,user_id,sort_order)'
+          '&members.order=sort_order',
+    )).body,
+  ) as List;
+  final detailMembers = detail.single['members'] as List;
+  check(
+    '여행방 조회: 멤버가 순서대로, 수아에 B가 연결돼 있다',
+    detailMembers.map((m) => m['name']).join(',') == '민지,수아,지훈,하린' &&
+        detailMembers[1]['user_id'] != null,
+  );
+  final again = jsonDecode(
+    (await b.rpc('preview_trip', {'p_invite_code': code})).body,
+  ) as Map<String, dynamic>;
+  check(
+    '다시 열면 B가 고른 이름이 "나"로 표시된다',
+    (again['members'] as List)[1]['is_me'] == true,
+  );
 
   // DB 제약조건
   check(

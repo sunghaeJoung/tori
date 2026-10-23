@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tori/features/trips/data/trips_repository.dart';
+import 'package:tori/core/money/currency.dart';
+import 'package:tori/features/trips/data/trip.dart';
 
 import '../../helpers/fake_app.dart';
 
@@ -26,5 +27,23 @@ void main() {
   test('정산을 마치면 날짜와 상관없이 지난 여행', () {
     final settled = sampleTrip(settled: true);
     expect(settled.phaseOn(DateTime(2026, 11, 7)), TripPhase.past);
+  });
+
+  test('여행에서 내 멤버 찾기', () {
+    final detail = TripDetail(
+      id: 't1',
+      name: '상하이',
+      startDate: DateTime(2026, 11, 6),
+      endDate: DateTime(2026, 11, 9),
+      currency: Currency.cny,
+      inviteCode: 'ABCD2345',
+      settled: false,
+      members: const [
+        Member(id: 'm1', name: '민지', userId: 'u1'),
+        Member(id: 'm2', name: '수아'),
+      ],
+    );
+    expect(detail.memberOf('u1')?.name, '민지');
+    expect(detail.memberOf('someone-else'), isNull);
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase/supabase_client.dart';
+import 'data/trip.dart';
 import 'data/trips_repository.dart';
 import 'ui/trip_draft.dart';
 
@@ -15,6 +16,15 @@ final todayProvider = Provider<DateTime>((ref) => DateTime.now());
 final myTripsProvider = FutureProvider<List<TripSummary>>((ref) async {
   await ref.watch(authUserProvider.future);
   return ref.watch(tripsRepositoryProvider).myTrips();
+});
+
+/// 여행 하나(멤버 포함).
+final tripDetailProvider = FutureProvider.family<TripDetail, String>((
+  ref,
+  tripId,
+) async {
+  await ref.watch(authUserProvider.future);
+  return ref.watch(tripsRepositoryProvider).tripDetail(tripId);
 });
 
 /// 여행 쓰기 작업. 화면이 아니라 provider의 ref를 써서, 저장 도중 화면이 닫혀도

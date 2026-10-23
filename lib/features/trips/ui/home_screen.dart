@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/tori_mascot.dart';
 import '../../../shared/widgets/tori_wordmark.dart';
 import '../../onboarding/providers.dart';
-import '../data/trips_repository.dart';
+import '../data/trip.dart';
 import '../providers.dart';
 import 'trip_card.dart';
 
@@ -54,32 +55,23 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      // 이미 받은 목록이 있으면 새로고침 중이거나 새로고침이 실패해도 목록을 계속 보여준다.
-      body: switch (trips) {
-        AsyncValue(hasValue: true, :final value?) when value.isEmpty =>
-          const EmptyState(
-            title: '아직 여행이 없어요',
-            message: '새 여행을 만들고 친구들을 초대해보세요',
-          ),
-        AsyncValue(hasValue: true, :final value?) => RefreshIndicator(
-          onRefresh: () {
-            ref.invalidate(todayProvider);
-            return ref.refresh(myTripsProvider.future);
-          },
-          child: _TripList(trips: value, today: ref.watch(todayProvider)),
-        ),
-        AsyncValue(isLoading: true) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-        _ => EmptyState(
-          title: '여행을 불러오지 못했어요',
-          message: '인터넷 연결을 확인해 주세요',
-          action: FilledButton.tonal(
-            onPressed: () => ref.read(tripActionsProvider).reloadTrips(),
-            child: const Text('다시 시도'),
-          ),
-        ),
-      },
+      body: AsyncView(
+        value: trips,
+        onRetry: () => ref.read(tripActionsProvider).reloadTrips(),
+        errorTitle: '여행을 불러오지 못했어요',
+        data: (trips) => trips.isEmpty
+            ? const EmptyState(
+                title: '아직 여행이 없어요',
+                message: '새 여행을 만들고 친구들을 초대해보세요',
+              )
+            : RefreshIndicator(
+                onRefresh: () {
+                  ref.invalidate(todayProvider);
+                  return ref.refresh(myTripsProvider.future);
+                },
+                child: _TripList(trips: trips, today: ref.watch(todayProvider)),
+              ),
+      ),
       bottomNavigationBar: BottomActions(
         children: [
           FilledButton.icon(
