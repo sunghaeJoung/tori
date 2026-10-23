@@ -76,22 +76,30 @@ void main() {
     expect(inTripRoom, findsOneWidget);
   });
 
-  testWidgets('주소로 바로 들어가기', (tester) async {
-    await pumpApp(tester, location: Routes.newTrip);
-    expect(find.text('여행 이름을 정해주세요'), findsOneWidget);
+  group('주소로 바로 들어가기', () {
+    testWidgets('여행 만들기', (tester) async {
+      await pumpApp(tester, location: Routes.newTrip);
+      expect(find.text('여행 이름을 정해주세요'), findsOneWidget);
+    });
 
-    await pumpApp(tester, location: Routes.join('ABCD2345'));
-    expect(find.text('나는 누구인가요?'), findsOneWidget);
+    testWidgets('나는 누구?', (tester) async {
+      await pumpApp(tester, location: Routes.join('ABCD2345'));
+      expect(find.text('나는 누구인가요?'), findsOneWidget);
+    });
 
-    await pumpApp(
-      tester,
-      location: Routes.expense('t1', 'e1'),
-      expenses: FakeExpensesRepository(expenses: sampleExpenses()),
-    );
-    expect(appBarTitle('지출 수정'), findsOneWidget);
+    testWidgets('지출 수정', (tester) async {
+      await pumpApp(
+        tester,
+        location: Routes.expense('t1', 'e1'),
+        expenses: FakeExpensesRepository(expenses: sampleExpenses()),
+      );
+      expect(appBarTitle('지출 수정'), findsOneWidget);
+    });
 
-    await pumpApp(tester, location: Routes.rate('t1'));
-    expect(appBarTitle('정산 환율 확인'), findsOneWidget);
+    testWidgets('정산 환율', (tester) async {
+      await pumpApp(tester, location: Routes.rate('t1'));
+      expect(appBarTitle('정산 환율 확인'), findsOneWidget);
+    });
   });
 
   testWidgets('없는 주소는 안내 화면 → 홈으로', (tester) async {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
 import 'package:tori/core/money/currency.dart';
 import 'package:tori/features/expenses/data/expense.dart';
@@ -14,10 +13,7 @@ Future<void> pumpForm(
   String? expenseId,
   FakeExpensesRepository? expenses,
 }) async {
-  tester.view
-    ..physicalSize = const Size(1170, 2532)
-    ..devicePixelRatio = 3;
-  addTearDown(tester.view.reset);
+  usePhoneSize(tester);
   // 여행방에서 열어야 저장 뒤 돌아갈 곳이 있다
   await pumpApp(tester, location: Routes.trip('t1'), expenses: expenses);
   GoRouter.of(tester.element(find.byType(Scaffold).first)).push(
@@ -37,12 +33,6 @@ Future<void> press(WidgetTester tester, String keys) async {
     );
     await tester.pump();
   }
-}
-
-Future<void> tapText(WidgetTester tester, String text) async {
-  await tester.ensureVisible(find.text(text).last);
-  await tester.tap(find.text(text).last);
-  await tester.pump();
 }
 
 FilledButton saveButton(WidgetTester tester) =>
@@ -158,10 +148,7 @@ void main() {
     final expenses = FakeExpensesRepository(expenses: sampleExpenses());
     await pumpForm(tester, expenseId: 'e3', expenses: expenses);
 
-    expenses.failWith = const PostgrestException(
-      message: '지출을 찾을 수 없다',
-      code: 'P0002',
-    );
+    expenses.failWith = const ExpenseNotFound();
     await tester.tap(find.widgetWithText(FilledButton, '저장'));
     await tester.pumpAndSettle();
     expect(find.text('다른 친구가 이 지출을 지웠어요'), findsOneWidget);

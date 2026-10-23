@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tori/core/money/currency.dart';
 import 'package:tori/features/expenses/data/expense.dart';
-import 'package:tori/features/expenses/ui/expense_draft.dart';
+import 'package:tori/features/expenses/data/expense_draft.dart';
 
 ExpenseDraft draft({Currency currency = Currency.cny}) => ExpenseDraft(
   currency: currency,

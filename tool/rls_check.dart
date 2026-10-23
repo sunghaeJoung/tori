@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:tori/core/money/split.dart';
 
 Future<void> main(List<String> args) async {
   final env = jsonDecode(
@@ -36,20 +37,16 @@ Future<void> main(List<String> args) async {
   final id = jsonDecode(created.body) as String;
   final trips = await a.get('trips', 'id=eq.$id&select=invite_code');
   final code = (jsonDecode(trips.body) as List).single['invite_code'] as String;
-  final members = jsonDecode(
-    (await a.get(
-      'members',
-      'trip_id=eq.$id&select=id,name,user_id&order=sort_order',
-    )).body,
-  ) as List;
+  final members = await a.rows(
+    'members',
+    'trip_id=eq.$id&select=id,name,user_id&order=sort_order',
+  );
 
   check('A는 자기 여행을 본다', trips.statusCode == 200);
-  final home = jsonDecode(
-    (await a.get(
-      'trips',
-      'select=id,name,start_date,end_date,local_currency,settled_at,members(count)',
-    )).body,
-  ) as List;
+  final home = await a.rows(
+    'trips',
+    'select=id,name,start_date,end_date,local_currency,settled_at,members(count)',
+  );
   check(
     '홈 목록 조회: 내 여행 1개, 멤버 수 4',
     home.length == 1 && (home.single['members'] as List).single['count'] == 4,
@@ -160,17 +157,12 @@ Future<void> main(List<String> args) async {
     'p_member_id': members[1]['id'],
   });
   check('B가 "수아"를 골라 입장한다', isOk(claim) && jsonDecode(claim.body) == id);
-  check(
-    '입장한 B는 여행을 본다',
-    (jsonDecode((await b.get('trips', 'id=eq.$id')).body) as List).length == 1,
+  check('입장한 B는 여행을 본다', (await b.rows('trips', 'id=eq.$id')).length == 1);
+  final detail = await b.rows(
+    'trips',
+    'id=eq.$id&select=id,name,invite_code,members(id,name,user_id,sort_order)'
+        '&members.order=sort_order',
   );
-  final detail = jsonDecode(
-    (await b.get(
-      'trips',
-      'id=eq.$id&select=id,name,invite_code,members(id,name,user_id,sort_order)'
-          '&members.order=sort_order',
-    )).body,
-  ) as List;
   final detailMembers = detail.single['members'] as List;
   check(
     '여행방 조회: 멤버가 순서대로, 수아에 B가 연결돼 있다',
@@ -189,12 +181,10 @@ Future<void> main(List<String> args) async {
   final changedBefore = await _expensesChangedAt(a, id);
   final saved = await a.rpc('save_expense', expense(id, members));
   final expenseId = jsonDecode(saved.body) as String;
-  final rows = jsonDecode(
-    (await b.get(
-      'expenses',
-      'id=eq.$expenseId&select=amount,expense_splits(member_id,share_amount)',
-    )).body,
-  ) as List;
+  final rows = await b.rows(
+    'expenses',
+    'id=eq.$expenseId&select=amount,expense_splits(member_id,share_amount)',
+  );
   final shares = [
     for (final s in rows.single['expense_splits'] as List) s['share_amount'],
   ]..sort();
@@ -210,9 +200,10 @@ Future<void> main(List<String> args) async {
     'save_expense',
     expense(id, members, expenseId: expenseId, amount: 5850, split: [0, 1]),
   );
-  final editedSplits = jsonDecode(
-    (await a.get('expense_splits', 'expense_id=eq.$expenseId&select=*')).body,
-  ) as List;
+  final editedSplits = await a.rows(
+    'expense_splits',
+    'expense_id=eq.$expenseId&select=*',
+  );
   check(
     'B가 지출을 고치면 분배도 통째로 바뀐다 (2명)',
     isOk(edited) && editedSplits.length == 2,
@@ -257,9 +248,7 @@ Future<void> main(List<String> args) async {
       'p_my_name': '외부인',
     })).body,
   ) as String;
-  final cMembers = jsonDecode(
-    (await c.get('members', 'trip_id=eq.$cTrip&select=id')).body,
-  ) as List;
+  final cMembers = await c.rows('members', 'trip_id=eq.$cTrip&select=id');
   check(
     'C에게 A 여행의 지출·분배가 안 보인다',
     isEmptyOrDenied(await c.get('expenses', 'trip_id=eq.$id')) &&
@@ -280,10 +269,7 @@ Future<void> main(List<String> args) async {
   check(
     'C는 A의 지출을 지울 수 없다',
     isEmptyOrDenied(await c.delete('expenses', 'id=eq.$expenseId')) &&
-        (jsonDecode(
-              (await a.get('expenses', 'id=eq.$expenseId')).body,
-            ) as List).length ==
-            1,
+        (await a.rows('expenses', 'id=eq.$expenseId')).length == 1,
   );
 
   // DB 제약조건
@@ -381,20 +367,17 @@ Map<String, Object?> expense(
     'p_category': 'food',
     'p_spent_at': '2026-11-06',
     'p_member_ids': ids,
-    'p_shares': [
-      for (var i = 0; i < ids.length; i++)
-        amount ~/ ids.length + (i < amount % ids.length ? 1 : 0),
-    ],
+    'p_shares': ids.isEmpty
+        ? <int>[]
+        : splitEvenly(amount, ids.cast<String>()).values.toList(),
   };
 }
 
 Future<DateTime> _expensesChangedAt(_Client client, String tripId) async {
-  final rows = jsonDecode(
-    (await client.get(
-      'trips',
-      'id=eq.$tripId&select=expenses_changed_at',
-    )).body,
-  ) as List;
+  final rows = await client.rows(
+    'trips',
+    'id=eq.$tripId&select=expenses_changed_at',
+  );
   return DateTime.parse(rows.single['expenses_changed_at'] as String);
 }
 
@@ -449,6 +432,13 @@ class _Client {
 
   Future<http.Response> rpc(String name, Map<String, Object?> params) =>
       _post('rpc/$name', params);
+
+  /// 조회해서 행 목록으로. 막히면 예외.
+  Future<List<dynamic>> rows(String table, String query) async {
+    final r = await get(table, query);
+    if (!isOk(r)) throw StateError('조회 실패 (${r.statusCode}): ${r.body}');
+    return jsonDecode(r.body) as List;
+  }
 
   Future<http.Response> get(String table, String query) =>
       http.get(Uri.parse('$url/rest/v1/$table?$query'), headers: _headers);

@@ -40,6 +40,7 @@ typedef CreatedTrip = ({
   List<String> friendNames,
 });
 
+/// 여행 저장소 가짜. [emitChange]로 친구가 지출을 바꾼 것처럼 실시간 알림을 보낸다.
 class FakeTripsRepository implements TripsRepository {
   FakeTripsRepository({List<TripSummary>? trips}) : trips = trips ?? [];
 
@@ -48,6 +49,23 @@ class FakeTripsRepository implements TripsRepository {
 
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
+
+  final _listeners = <void Function()>[];
+
+  /// 지금 실시간 구독 중인 곳 수.
+  int get watching => _listeners.length;
+
+  void emitChange() {
+    for (final listener in List.of(_listeners)) {
+      listener();
+    }
+  }
+
+  @override
+  void Function() watchChanges(String tripId, void Function() onChange) {
+    _listeners.add(onChange);
+    return () => _listeners.remove(onChange);
+  }
 
   @override
   Future<List<TripSummary>> myTrips() async {
@@ -144,7 +162,7 @@ typedef SavedExpense = ({
   Map<String, int> shares,
 });
 
-/// 지출 저장소 가짜. [emitChange]로 친구가 바꾼 것처럼 실시간 알림을 보낸다.
+/// 지출 저장소 가짜.
 class FakeExpensesRepository implements ExpensesRepository {
   FakeExpensesRepository({List<Expense>? expenses}) : expenses = expenses ?? [];
 
@@ -155,17 +173,6 @@ class FakeExpensesRepository implements ExpensesRepository {
 
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
-
-  final _listeners = <void Function()>[];
-
-  /// 지금 실시간 구독 중인 화면 수.
-  int get watching => _listeners.length;
-
-  void emitChange() {
-    for (final listener in List.of(_listeners)) {
-      listener();
-    }
-  }
 
   @override
   Future<List<Expense>> list(String tripId) async {
@@ -188,7 +195,7 @@ class FakeExpensesRepository implements ExpensesRepository {
     if (failWith != null) throw failWith!;
     final index = expenses.indexWhere((e) => e.id == expenseId);
     if (expenseId != null && index < 0) {
-      throw const PostgrestException(message: '지출을 찾을 수 없다', code: 'P0002');
+      throw const ExpenseNotFound();
     }
     saved.add((
       expenseId: expenseId,
@@ -223,12 +230,6 @@ class FakeExpensesRepository implements ExpensesRepository {
     if (failWith != null) throw failWith!;
     deleted.add(expenseId);
     expenses.removeWhere((e) => e.id == expenseId);
-  }
-
-  @override
-  void Function() watchTrip(String tripId, void Function() onChange) {
-    _listeners.add(onChange);
-    return () => _listeners.remove(onChange);
   }
 }
 
@@ -308,11 +309,6 @@ Future<void> pumpApp(
   FakeExpensesRepository? expenses,
   List<Override> overrides = const [],
 }) async {
-  // 한 테스트에서 앱을 다시 띄울 때, 앞 앱의 화면을 먼저 내리고
-  // 화면이 쓰던 provider 정리(0초 타이머)까지 끝낸다.
-  await tester.pumpWidget(const SizedBox.shrink());
-  await tester.pump();
-
   final repo = repository ?? FakeTripsRepository();
   final container = ProviderContainer(
     overrides: [
@@ -337,11 +333,27 @@ Future<void> pumpApp(
   await tester.pumpAndSettle();
 }
 
+/// 휴대폰 크기(390×844)로 띄운다. 테스트가 끝나면 되돌린다.
+void usePhoneSize(WidgetTester tester) {
+  tester.view
+    ..physicalSize = const Size(1170, 2532)
+    ..devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+}
+
 /// 가짜 여행 't1'의 여행방 화면인가 (제목이 여행 이름).
 Finder get inTripRoom => appBarTitle('상하이 우정여행');
 
 Finder appBarTitle(String title) =>
     find.descendant(of: find.byType(AppBar), matching: find.text(title));
+
+/// 글자를 눌러 한 프레임 그린다 (스크롤 안쪽이면 먼저 보이게 한다).
+/// 같은 글자가 여럿이면 마지막 것.
+Future<void> tapText(WidgetTester tester, String text) async {
+  await tester.ensureVisible(find.text(text).last);
+  await tester.tap(find.text(text).last);
+  await tester.pump();
+}
 
 Future<void> tapButton<T extends Widget>(
   WidgetTester tester,

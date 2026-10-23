@@ -15,8 +15,7 @@ void main() {
   });
 
   testWidgets('총 지출·내 잔액과 날짜별 지출', (tester) async {
-    tester.view.physicalSize = const Size(1170, 2532);
-    addTearDown(tester.view.reset);
+    usePhoneSize(tester);
     await pumpApp(
       tester,
       location: Routes.trip('t1'),
@@ -56,19 +55,25 @@ void main() {
   });
 
   testWidgets('친구가 바꾼 지출이 실시간으로 반영된다', (tester) async {
+    final trips = FakeTripsRepository();
     final expenses = FakeExpensesRepository();
-    await pumpApp(tester, location: Routes.trip('t1'), expenses: expenses);
-    expect(expenses.watching, 1);
+    await pumpApp(
+      tester,
+      location: Routes.trip('t1'),
+      repository: trips,
+      expenses: expenses,
+    );
+    expect(trips.watching, 1);
 
     expenses.expenses.add(sampleExpenses().first);
-    expenses.emitChange();
+    trips.emitChange();
     await tester.pumpAndSettle();
     expect(find.text('맥주'), findsOneWidget);
 
     // 여행방을 떠나면 구독을 끝낸다
     await tester.tap(find.byTooltip('홈으로'));
     await tester.pumpAndSettle();
-    expect(expenses.watching, 0);
+    expect(trips.watching, 0);
   });
 
   testWidgets('지출을 누르면 수정 화면', (tester) async {
