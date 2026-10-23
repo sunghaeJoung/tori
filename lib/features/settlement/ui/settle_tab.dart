@@ -275,6 +275,8 @@ class _TransferCardState extends State<_TransferCard> {
     final _TransferCard(:transfer, :from, :to, :role, :approx) = widget;
     final done = transfer.done;
     final onToggle = _busy ? null : _toggle;
+    final name = Theme.of(context).textTheme.bodyLarge
+        ?.copyWith(fontWeight: FontWeight.w700);
     final text = Theme.of(context).textTheme;
     return Opacity(
       opacity: done ? 0.6 : 1,
@@ -288,30 +290,23 @@ class _TransferCardState extends State<_TransferCard> {
             spacing: 14,
             children: [
               Row(
-                spacing: 6,
+                spacing: 8,
                 children: [
-                  Flexible(
-                    child: Text(
-                      from,
-                      style: text.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  // 이름은 왼쪽, 남는 폭은 모두 여기로 (배지는 오른쪽 끝)
+                  Expanded(
+                    child: Row(
+                      spacing: 6,
+                      children: [
+                        Flexible(child: Text(from, style: name)),
+                        const Icon(
+                          Icons.arrow_forward,
+                          size: 18,
+                          color: ToriColors.textSub,
+                        ),
+                        Flexible(child: Text(to, style: name)),
+                      ],
                     ),
                   ),
-                  const Icon(
-                    Icons.arrow_forward,
-                    size: 18,
-                    color: ToriColors.textSub,
-                  ),
-                  Flexible(
-                    child: Text(
-                      to,
-                      style: text.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
                   if (role != null) Pill(role),
                 ],
               ),
