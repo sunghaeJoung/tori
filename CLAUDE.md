@@ -38,6 +38,7 @@ lib/
   shared/widgets/        공통 버튼, 금액 표시, 빈 화면, 라벨 입력칸, 배지 등
   shared/dates.dart      날짜 표기(2026.11.06)와 DB 날짜 문자열
   shared/limits.dart     이름 길이·멤버 수 제한 (DB 제약조건과 같게)
+  shared/messages.dart   화면 아래 짧은 안내(showMessage)와 실패 안내 문구
 assets/fonts/            Pretendard 400/600/700/800 (OFL)
 assets/images/           토리 캐릭터 등
 supabase/migrations/     테이블·RLS·RPC SQL
