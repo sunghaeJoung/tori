@@ -1,3 +1,6 @@
+import 'package:decimal/decimal.dart';
+
+import '../../../core/exchange_rate/frankfurter_api.dart';
 import '../../../core/money/currency.dart';
 
 /// 홈에서 여행을 나누는 기준.
@@ -31,7 +34,7 @@ class TripSummary {
     endDate: DateTime.parse(json['end_date'] as String),
     currency: Currency.fromCode(json['local_currency'] as String),
     memberCount: (json['members'] as List).single['count'] as int,
-    settled: json['settled_at'] != null,
+    settled: json['settled_at'] != null && !_isStale(json),
   );
 
   final String id;
@@ -43,7 +46,8 @@ class TripSummary {
   final Currency currency;
   final int memberCount;
 
-  /// 정산을 확정했는가. 정산을 마치면 날짜와 상관없이 "지난 여행"이다.
+  /// 정산을 확정했고 그 뒤로 지출이 바뀌지 않았는가.
+  /// 정산을 마치면 날짜와 상관없이 "지난 여행"이다.
   final bool settled;
 
   TripPhase phaseOn(DateTime today) {
@@ -87,8 +91,9 @@ class TripDetail {
     required this.endDate,
     required this.currency,
     required this.inviteCode,
-    required this.settled,
     required this.members,
+    this.settledRate,
+    this.settlementStale = false,
   });
 
   factory TripDetail.fromJson(Map<String, dynamic> json) => TripDetail(
@@ -98,7 +103,15 @@ class TripDetail {
     endDate: DateTime.parse(json['end_date'] as String),
     currency: Currency.fromCode(json['local_currency'] as String),
     inviteCode: json['invite_code'] as String,
-    settled: json['settled_at'] != null,
+    settledRate: json['settled_at'] == null
+        ? null
+        : ExchangeRate(
+            currency: Currency.fromCode(json['local_currency'] as String),
+            // numeric이 JSON 숫자로 온다. double 오차 없이 글자로 바꿔 읽는다
+            krwPerUnit: Decimal.parse(json['settle_rate'].toString()),
+            date: DateTime.parse(json['settle_rate_date'] as String),
+          ),
+    settlementStale: _isStale(json),
     members: [
       for (final m in json['members'] as List)
         Member.fromJson(m as Map<String, dynamic>),
@@ -111,8 +124,16 @@ class TripDetail {
   final DateTime endDate;
   final Currency currency;
   final String inviteCode;
-  final bool settled;
   final List<Member> members;
+
+  /// 확정한 정산 환율과 기준일. 정산 전이면 null. 원화 여행은 1.
+  final ExchangeRate? settledRate;
+
+  /// 정산한 뒤 지출이 바뀌었다. 다시 정산해야 한다.
+  final bool settlementStale;
+
+  /// 정산을 확정했고 그 뒤로 지출이 바뀌지 않았다.
+  bool get settled => settledRate != null && !settlementStale;
 
   /// 멤버 id (멤버 순서). 지출 나누기의 나머지를 앞사람부터 주는 기준.
   List<String> get memberIds => [for (final m in members) m.id];
@@ -123,4 +144,12 @@ class TripDetail {
   Member? memberOf(String? userId) => userId == null
       ? null
       : members.where((m) => m.userId == userId).firstOrNull;
+}
+
+/// 정산한 뒤 지출이 바뀌었는가 (trips 행의 settled_at · expenses_changed_at).
+bool _isStale(Map<String, dynamic> json) {
+  final settledAt = json['settled_at'] as String?;
+  if (settledAt == null) return false;
+  return DateTime.parse(json['expenses_changed_at'] as String)
+      .isAfter(DateTime.parse(settledAt));
 }

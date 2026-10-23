@@ -16,7 +16,8 @@ class TripsRepository {
     final rows = await _client
         .from('trips')
         .select(
-          'id, name, start_date, end_date, local_currency, settled_at, members(count)',
+          'id, name, start_date, end_date, local_currency, settled_at, '
+          'expenses_changed_at, members(count)',
         )
         .order('start_date', ascending: false);
     return rows.map(TripSummary.fromJson).toList();
@@ -27,7 +28,8 @@ class TripsRepository {
     final row = await _client
         .from('trips')
         .select(
-          'id, name, start_date, end_date, local_currency, invite_code, settled_at, '
+          'id, name, start_date, end_date, local_currency, invite_code, '
+          'settled_at, settle_rate, settle_rate_date, expenses_changed_at, '
           'members(id, name, user_id, sort_order)',
         )
         .eq('id', id)
