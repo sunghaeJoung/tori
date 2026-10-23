@@ -7,6 +7,7 @@ import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/korean.dart';
+import '../../../shared/messages.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -46,14 +47,8 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
         ref.invalidate(tripPreviewProvider(widget.code));
       }
       setState(() => _joining = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            changed
-                ? '여행 정보가 바뀌었어요. 이름을 다시 골라주세요'
-                : '들어가지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showMessage(
+        changed ? '여행 정보가 바뀌었어요. 이름을 다시 골라주세요' : '들어가지 못했어요. $retryHint',
       );
     }
   }

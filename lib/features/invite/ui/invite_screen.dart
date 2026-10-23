@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../shared/messages.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../trips/data/trip.dart';
@@ -69,13 +70,9 @@ class InviteScreen extends ConsumerWidget {
       // 공유창이 없는 브라우저면 링크 복사로 대신한다
       try {
         await Clipboard.setData(ClipboardData(text: link));
-        messenger.showSnackBar(
-          const SnackBar(content: Text('공유할 수 없어서 초대 링크를 복사했어요')),
-        );
+        messenger.showMessage('공유할 수 없어서 초대 링크를 복사했어요');
       } on Exception {
-        messenger.showSnackBar(
-          SnackBar(content: Text('공유하지 못했어요. 초대 코드 ${trip.inviteCode}를 알려주세요')),
-        );
+        messenger.showMessage('공유하지 못했어요. 초대 코드 ${trip.inviteCode}를 알려주세요');
       }
     }
   }

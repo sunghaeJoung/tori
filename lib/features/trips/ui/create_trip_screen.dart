@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../core/money/currency.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/limits.dart';
+import '../../../shared/messages.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/labeled_field.dart';
 import '../../../shared/widgets/money_text.dart';
@@ -44,11 +45,8 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
     if (_saving) return;
     if (_step > 1) {
       setState(() => _step--);
-    } else if (context.canPop()) {
-      context.pop();
     } else {
-      // 주소로 바로 들어와 돌아갈 화면이 없을 때
-      context.go(Routes.home);
+      context.popOrGo(Routes.home);
     }
   }
 
@@ -67,9 +65,7 @@ class _CreateTripScreenState extends ConsumerState<CreateTripScreen> {
       debugPrint('여행 만들기 실패: $e');
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('여행을 만들지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요')),
-      );
+      ScaffoldMessenger.of(context).showMessage('여행을 만들지 못했어요. $retryHint');
     }
   }
 

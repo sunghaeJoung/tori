@@ -113,6 +113,11 @@ String? onboardingRedirect(Uri uri, String? nickname) {
   return safe ? from : Routes.home;
 }
 
+extension PopOrGo on BuildContext {
+  /// 이전 화면으로 돌아간다. 주소로 바로 들어와 돌아갈 화면이 없으면 [fallback]으로.
+  void popOrGo(String fallback) => canPop() ? pop() : go(fallback);
+}
+
 String _tripId(GoRouterState state) => state.pathParameters['tripId']!;
 
 class _NotFoundScreen extends StatelessWidget {
