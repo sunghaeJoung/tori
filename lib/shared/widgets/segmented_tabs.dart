@@ -9,14 +9,12 @@ class SegmentedTabs<T> extends StatelessWidget {
     required this.options,
     required this.selected,
     required this.onSelect,
-    this.height = 44,
   });
 
   /// (값, 라벨)
   final List<(T, String)> options;
   final T selected;
   final ValueChanged<T> onSelect;
-  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +50,7 @@ class SegmentedTabs<T> extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           onTap: isSelected ? null : () => onSelect(value),
           child: SizedBox(
-            height: height - 8,
+            height: 36,
             child: Center(
               child: Text(
                 label,

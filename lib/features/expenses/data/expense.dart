@@ -22,6 +22,11 @@ enum ExpenseCategory {
       values.firstWhere((c) => c.code == code, orElse: () => etc);
 }
 
+/// 고치려던 지출을 다른 친구가 이미 지웠다.
+class ExpenseNotFound implements Exception {
+  const ExpenseNotFound();
+}
+
 /// 지출 한 건과 멤버별 부담액.
 class Expense {
   const Expense({

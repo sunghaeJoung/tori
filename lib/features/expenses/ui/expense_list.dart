@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
-import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/money/settlement.dart';
 import '../../../shared/dates.dart';
@@ -76,17 +75,19 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    // 현지 통화 먼저, 원화(미리 결제한 항공권 등)는 뒤에
-    final currencies = {trip.currency, Currency.krw};
-    final totals = {
-      for (final c in currencies)
-        c: expenses
-            .where((e) => e.currency == c)
-            .fold(0, (sum, e) => sum + e.amount),
-    }..removeWhere((c, total) => total == 0 && c != trip.currency);
-    final balances = computeBalances([
-      for (final m in trip.members) m.id,
-    ], expenses.map((e) => e.toEntry()));
+    // 현지 통화는 항상 먼저, 원화(미리 결제한 항공권 등)는 있으면 뒤에
+    final totals = {trip.currency: 0};
+    for (final e in expenses) {
+      totals.update(
+        e.currency,
+        (sum) => sum + e.amount,
+        ifAbsent: () => e.amount,
+      );
+    }
+    final balances = computeBalances(
+      trip.memberIds,
+      expenses.map((e) => e.toEntry()),
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
@@ -198,10 +199,7 @@ class _ExpenseRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final payer = trip.members
-        .where((m) => m.id == expense.paidBy)
-        .firstOrNull
-        ?.name;
+    final payer = trip.memberById(expense.paidBy)?.name;
     final myShare = me == null ? null : expense.shares[me!.id];
 
     return InkWell(

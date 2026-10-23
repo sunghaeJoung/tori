@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/money/currency.dart';
-import '../../../core/money/money_format.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/limits.dart';
+import '../../../shared/messages.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/labeled_field.dart';
@@ -19,38 +17,110 @@ import '../../../shared/widgets/toggle_chip.dart';
 import '../../trips/data/trip.dart';
 import '../../trips/providers.dart';
 import '../data/expense.dart';
+import '../data/expense_draft.dart';
 import '../providers.dart';
 import 'category_icon.dart';
-import 'expense_draft.dart';
 
 /// 08 지출 추가 · 수정. [expenseId]가 있으면 수정.
-class ExpenseFormScreen extends ConsumerStatefulWidget {
+///
+/// 여행(과 고칠 지출)을 불러오면 [_ExpenseEditor]가 입력을 맡는다.
+class ExpenseFormScreen extends ConsumerWidget {
   const ExpenseFormScreen({super.key, required this.tripId, this.expenseId});
 
   final String tripId;
   final String? expenseId;
 
   @override
-  ConsumerState<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trip = ref.watch(tripDetailProvider(tripId));
+    final expense = expenseId == null
+        ? const AsyncData<Expense?>(null)
+        : ref.watch(
+            expensesProvider(tripId).select(
+              (list) => list.whenData(
+                (list) => list.where((e) => e.id == expenseId).firstOrNull,
+              ),
+            ),
+          );
+
+    if ((trip.value, expense.value) case (final trip?, final found)
+        when expenseId == null || found != null) {
+      return _ExpenseEditor(trip: trip, expense: found);
+    }
+    void close() => context.popOrGo(Routes.trip(tripId));
+    return Scaffold(
+      appBar: _appBar(isEdit: expenseId != null, onClose: close),
+      body: !trip.hasValue
+          ? AsyncView(
+              value: trip,
+              onRetry: () => ref.invalidate(tripDetailProvider(tripId)),
+              errorTitle: '여행을 불러오지 못했어요',
+              data: (_) => const SizedBox.shrink(),
+            )
+          : AsyncView(
+              value: expense,
+              onRetry: () => ref.invalidate(expensesProvider(tripId)),
+              errorTitle: '지출을 불러오지 못했어요',
+              data: (_) => EmptyState(
+                title: '지출을 찾을 수 없어요',
+                message: '다른 친구가 지웠을 수 있어요',
+                action: FilledButton(
+                  onPressed: close,
+                  child: const Text('여행방으로'),
+                ),
+              ),
+            ),
+    );
+  }
 }
 
-class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
-  /// 여행(과 고칠 지출)을 불러온 뒤 한 번만 만든다.
-  /// 그 뒤로 친구가 같은 지출을 고쳐도 입력 중인 값은 그대로 둔다.
-  ExpenseDraft? _draft;
+AppBar _appBar({
+  required bool isEdit,
+  required VoidCallback? onClose,
+  List<Widget> actions = const [],
+}) => AppBar(
+  leading: IconButton(
+    tooltip: '닫기',
+    icon: const Icon(Icons.close),
+    onPressed: onClose,
+  ),
+  title: Text(isEdit ? '지출 수정' : '지출 추가'),
+  actions: [...actions, const SizedBox(width: 8)],
+);
+
+/// 입력 중인 지출을 들고 저장·삭제한다. [expense]가 있으면 수정.
+class _ExpenseEditor extends ConsumerStatefulWidget {
+  const _ExpenseEditor({required this.trip, required this.expense});
+
+  final TripDetail trip;
+  final Expense? expense;
+
+  @override
+  ConsumerState<_ExpenseEditor> createState() => _ExpenseEditorState();
+}
+
+class _ExpenseEditorState extends ConsumerState<_ExpenseEditor> {
+  /// 처음 한 번만 만든다. 그 뒤로 친구가 같은 지출을 고쳐도 입력 중인 값은 그대로 둔다.
+  late final ExpenseDraft _draft;
   var _saving = false;
   var _confirmDelete = false;
 
-  bool get _isEdit => widget.expenseId != null;
-
-  void _close() {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      // 주소로 바로 들어와 돌아갈 화면이 없을 때
-      context.go(Routes.trip(widget.tripId));
-    }
+  @override
+  void initState() {
+    super.initState();
+    final trip = widget.trip;
+    _draft = switch (widget.expense) {
+      final expense? => ExpenseDraft.from(expense),
+      null => ExpenseDraft(
+        currency: trip.currency,
+        spentAt: DateUtils.dateOnly(ref.read(todayProvider)),
+        paidBy: trip.memberOf(ref.read(authUserProvider).value?.id)?.id,
+        splitAmong: trip.memberIds,
+      ),
+    };
   }
+
+  void _close() => context.popOrGo(Routes.trip(widget.trip.id));
 
   Future<void> _run(Future<void> Function() action, String failMessage) async {
     setState(() => _saving = true);
@@ -64,25 +134,17 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
         _saving = false;
         _confirmDelete = false;
       });
-      final gone = e is PostgrestException && e.code == 'P0002';
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(gone ? '다른 친구가 이 지출을 지웠어요' : failMessage)),
-        );
+      ScaffoldMessenger.of(
+        context,
+      ).showMessage(e is ExpenseNotFound ? '다른 친구가 이 지출을 지웠어요' : failMessage);
     }
   }
 
-  void _save(TripDetail trip) => _run(
+  void _save() => _run(
     () => ref
         .read(expenseActionsProvider)
-        .save(
-          widget.tripId,
-          _draft!,
-          expenseId: widget.expenseId,
-          memberIds: [for (final m in trip.members) m.id],
-        ),
-    '저장하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요',
+        .save(widget.trip, _draft, expenseId: widget.expense?.id),
+    '저장하지 못했어요. $retryHint',
   );
 
   void _delete() {
@@ -93,71 +155,19 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     _run(
       () => ref
           .read(expenseActionsProvider)
-          .delete(widget.tripId, widget.expenseId!),
-      '지우지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요',
-    );
-  }
-
-  ExpenseDraft _newDraft(TripDetail trip) {
-    final userId = ref.read(authUserProvider).value?.id;
-    return ExpenseDraft(
-      currency: trip.currency,
-      spentAt: DateUtils.dateOnly(ref.read(todayProvider)),
-      paidBy: (userId == null ? null : trip.memberOf(userId))?.id,
-      splitAmong: [for (final m in trip.members) m.id],
+          .delete(widget.trip.id, widget.expense!.id),
+      '지우지 못했어요. $retryHint',
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final trip = ref.watch(tripDetailProvider(widget.tripId));
-    // 고칠 지출은 처음 한 번만 찾는다
-    final expenses = _isEdit && _draft == null
-        ? ref.watch(expensesProvider(widget.tripId))
-        : null;
-    if (_draft == null && trip.hasValue) {
-      if (expenses == null) {
-        _draft = _newDraft(trip.requireValue);
-      } else {
-        final expense = expenses.value
-            ?.where((e) => e.id == widget.expenseId)
-            .firstOrNull;
-        if (expense != null) _draft = ExpenseDraft.from(expense);
-      }
-    }
-    final draft = _draft;
-
-    Widget body(TripDetail trip) {
-      if (draft != null) {
-        return _Form(
-          trip: trip,
-          draft: draft,
-          enabled: !_saving,
-          onChanged: () => setState(() {}),
-        );
-      }
-      return AsyncView(
-        value: expenses!,
-        onRetry: () => ref.invalidate(expensesProvider(widget.tripId)),
-        errorTitle: '지출을 불러오지 못했어요',
-        data: (_) => EmptyState(
-          title: '지출을 찾을 수 없어요',
-          message: '다른 친구가 지웠을 수 있어요',
-          action: FilledButton(onPressed: _close, child: const Text('여행방으로')),
-        ),
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: '닫기',
-          icon: const Icon(Icons.close),
-          onPressed: _saving ? null : _close,
-        ),
-        title: Text(_isEdit ? '지출 수정' : '지출 추가'),
+      appBar: _appBar(
+        isEdit: widget.expense != null,
+        onClose: _saving ? null : _close,
         actions: [
-          if (_isEdit && draft != null)
+          if (widget.expense != null)
             TextButton(
               onPressed: _saving ? null : _delete,
               style: TextButton.styleFrom(
@@ -169,23 +179,20 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
               ),
               child: Text(_confirmDelete ? '한 번 더 누르면 삭제' : '삭제'),
             ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: AsyncView(
-        value: trip,
-        onRetry: () => ref.invalidate(tripDetailProvider(widget.tripId)),
-        errorTitle: '여행을 불러오지 못했어요',
-        data: body,
+      body: _Form(
+        trip: widget.trip,
+        draft: _draft,
+        enabled: !_saving,
+        onChanged: () => setState(() {}),
       ),
-      bottomNavigationBar: draft == null || !trip.hasValue
-          ? null
-          : _KeypadArea(
-              draft: draft,
-              saving: _saving,
-              onPress: (key) => setState(() => draft.press(key)),
-              onSave: () => _save(trip.requireValue),
-            ),
+      bottomNavigationBar: _KeypadArea(
+        draft: _draft,
+        saving: _saving,
+        onPress: (key) => setState(() => _draft.press(key)),
+        onSave: _save,
+      ),
     );
   }
 }
@@ -225,7 +232,7 @@ class _Form extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final memberIds = [for (final m in trip.members) m.id];
+    final memberIds = trip.memberIds;
     final allSelected = draft.splitAmong.length == memberIds.length;
 
     return Column(
@@ -240,7 +247,6 @@ class _Form extends StatelessWidget {
                 SizedBox(
                   width: 180,
                   child: SegmentedTabs(
-                    height: 44,
                     options: [
                       (trip.currency, trip.currency.unit),
                       (Currency.krw, Currency.krw.unit),
@@ -253,7 +259,7 @@ class _Form extends StatelessWidget {
                 liveRegion: true,
                 label: '금액',
                 child: Text(
-                  withUnit(draft.amountDisplay, draft.currency),
+                  draft.currency.withUnit(draft.amountDisplay),
                   style: TextStyle(
                     fontSize: 40,
                     fontWeight: FontWeight.w800,
@@ -440,7 +446,7 @@ class _KeypadArea extends StatelessWidget {
       'del',
     ];
     return ColoredBox(
-      color: const Color(0xFFF6F1EA),
+      color: ToriColors.keypad,
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

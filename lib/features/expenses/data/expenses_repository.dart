@@ -26,7 +26,7 @@ class ExpensesRepository {
   /// 지출을 저장하고 id를 돌려준다. [expenseId]가 있으면 수정.
   /// 지출과 부담액은 save_expense RPC가 한 번에 저장한다.
   ///
-  /// 수정하려던 지출이 이미 지워졌으면 code `P0002` [PostgrestException].
+  /// 수정하려던 지출이 이미 지워졌으면 [ExpenseNotFound].
   Future<String> save({
     required String tripId,
     String? expenseId,
@@ -37,53 +37,30 @@ class ExpensesRepository {
     required ExpenseCategory category,
     required DateTime spentAt,
     required Map<String, int> shares,
-  }) {
-    return _client.rpc<String>(
-      'save_expense',
-      params: {
-        'p_trip_id': tripId,
-        'p_expense_id': expenseId,
-        'p_title': title,
-        'p_amount': amount,
-        'p_currency': currency.code,
-        'p_paid_by': paidBy,
-        'p_category': category.code,
-        'p_spent_at': toDbDate(spentAt),
-        'p_member_ids': shares.keys.toList(),
-        'p_shares': shares.values.toList(),
-      },
-    );
+  }) async {
+    try {
+      return await _client.rpc<String>(
+        'save_expense',
+        params: {
+          'p_trip_id': tripId,
+          'p_expense_id': expenseId,
+          'p_title': title,
+          'p_amount': amount,
+          'p_currency': currency.code,
+          'p_paid_by': paidBy,
+          'p_category': category.code,
+          'p_spent_at': toDbDate(spentAt),
+          'p_member_ids': shares.keys.toList(),
+          'p_shares': shares.values.toList(),
+        },
+      );
+    } on PostgrestException catch (e) {
+      // save_expense가 '지출을 찾을 수 없다'(no_data_found)로 거절한 경우
+      if (e.code == 'P0002') throw const ExpenseNotFound();
+      rethrow;
+    }
   }
 
   Future<void> delete(String expenseId) =>
       _client.from('expenses').delete().eq('id', expenseId);
-
-  /// 여행의 지출이 바뀔 때마다(누가 추가·수정·삭제) [onChange]를 부른다.
-  /// 연결이 끊겼다가 다시 이어져도 부른다 (그사이 놓친 변경을 다시 불러오도록).
-  /// 돌려준 함수를 부르면 구독을 끝낸다.
-  ///
-  /// DB 트리거가 지출이 바뀔 때 trips 행의 expenses_changed_at을 갱신하므로
-  /// 여행 행 하나만 구독한다.
-  void Function() watchTrip(String tripId, void Function() onChange) {
-    var subscribedOnce = false;
-    final channel = _client
-        .channel('trip:$tripId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'trips',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: tripId,
-          ),
-          callback: (_) => onChange(),
-        )
-        .subscribe((status, _) {
-          if (status != RealtimeSubscribeStatus.subscribed) return;
-          if (subscribedOnce) onChange();
-          subscribedOnce = true;
-        });
-    return () => _client.removeChannel(channel);
-  }
 }

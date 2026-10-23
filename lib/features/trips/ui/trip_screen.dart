@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../shared/widgets/async_view.dart';
-import '../../expenses/providers.dart';
 import '../../expenses/ui/expense_list.dart';
 import '../providers.dart';
 
@@ -18,8 +17,6 @@ class TripScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trip = ref.watch(tripDetailProvider(tripId));
-    // 화면이 열려 있는 동안 친구들이 바꾼 지출을 바로 반영한다
-    ref.watch(tripLiveUpdatesProvider(tripId));
     final userId = ref.watch(authUserProvider).value?.id;
 
     return Scaffold(
@@ -27,8 +24,7 @@ class TripScreen extends ConsumerWidget {
         leading: IconButton(
           tooltip: '홈으로',
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(Routes.home),
+          onPressed: () => context.popOrGo(Routes.home),
         ),
         title: Text(trip.value?.name ?? ''),
         actions: [
@@ -44,10 +40,7 @@ class TripScreen extends ConsumerWidget {
         value: trip,
         onRetry: () => ref.invalidate(tripDetailProvider(tripId)),
         errorTitle: '여행을 불러오지 못했어요',
-        data: (trip) => ExpenseList(
-          trip: trip,
-          me: userId == null ? null : trip.memberOf(userId),
-        ),
+        data: (trip) => ExpenseList(trip: trip, me: trip.memberOf(userId)),
       ),
       floatingActionButton: trip.hasValue
           ? FloatingActionButton.extended(

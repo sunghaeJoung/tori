@@ -55,4 +55,33 @@ class TripsRepository {
       },
     );
   }
+
+  /// 여행의 지출이 바뀔 때마다(누가 추가·수정·삭제) [onChange]를 부른다.
+  /// 연결이 끊겼다가 다시 이어져도 부른다 (그사이 놓친 변경을 다시 불러오도록).
+  /// 돌려준 함수를 부르면 구독을 끝낸다.
+  ///
+  /// DB 트리거가 지출이 바뀔 때 이 여행 행의 expenses_changed_at을 갱신하므로
+  /// 여행 행 하나만 구독하면 된다.
+  void Function() watchChanges(String tripId, void Function() onChange) {
+    var subscribedOnce = false;
+    final channel = _client
+        .channel('trip:$tripId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'trips',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: tripId,
+          ),
+          callback: (_) => onChange(),
+        )
+        .subscribe((status, _) {
+          if (status != RealtimeSubscribeStatus.subscribed) return;
+          if (subscribedOnce) onChange();
+          subscribedOnce = true;
+        });
+    return () => _client.removeChannel(channel);
+  }
 }

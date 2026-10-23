@@ -1,10 +1,11 @@
+import 'package:decimal/decimal.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/money/split.dart';
 import '../../../shared/limits.dart';
-import '../data/expense.dart';
+import 'expense.dart';
 
 /// 지출 추가·수정 화면에서 입력 중인 값.
 ///
@@ -46,14 +47,14 @@ class ExpenseDraft {
   String amountText;
 
   /// 최소 단위 정수 금액 (`128.5`위안 → 12850).
-  int get amount {
-    if (amountText.isEmpty) return 0;
-    final [whole, ...rest] = amountText.split('.');
-    final fraction = (rest.firstOrNull ?? '').padRight(currency.decimals, '0');
-    return int.parse(
-      '${whole.isEmpty ? '0' : whole}${fraction.substring(0, currency.decimals)}',
-    );
-  }
+  int get amount => amountText.isEmpty
+      ? 0
+      // `128.`처럼 점으로 끝나면 점을 떼고 읽는다
+      : currency.toMinor(
+          Decimal.parse(amountText.replaceFirst(_trailingDot, '')),
+        );
+
+  static final _trailingDot = RegExp(r'\.$');
 
   /// 키패드 한 번 누르기. [key]는 `0`~`9`, `00`, `.`, `del`.
   /// 받을 수 없는 키(소수 자리 초과, 9자리 초과, 맨 앞 0 등)는 무시한다.
@@ -104,14 +105,14 @@ class ExpenseDraft {
 
   /// 금액 아래 안내: `4명 · 1인당 1,462.50위안` (나누어 떨어지지 않으면 `1,462~1,463원`)
   String perPersonText() {
-    final count = splitAmong.length;
-    if (count == 0) return '나눌 사람을 골라주세요';
+    if (splitAmong.isEmpty) return '나눌 사람을 골라주세요';
     if (amount == 0) return '금액을 입력해주세요';
-    final low = amount ~/ count;
-    final each = amount % count == 0
+    final shares = splitEvenly(amount, splitAmong.toList()).values;
+    final (low, high) = (shares.last, shares.first); // 앞사람이 더 낸다
+    final each = low == high
         ? formatMoney(low, currency)
-        : '${formatMoney(low, currency)}~${formatMoney(low + 1, currency)}';
-    return '$count명 · 1인당 $each';
+        : '${formatMoney(low, currency)}~${formatMoney(high, currency)}';
+    return '${shares.length}명 · 1인당 $each';
   }
 
   /// 저장된 금액을 키패드 글자로: 12850위안 → `128.5`, 12800 → `128`

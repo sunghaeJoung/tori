@@ -114,7 +114,13 @@ class TripDetail {
   final bool settled;
   final List<Member> members;
 
-  /// 이 여행에서 [userId] 사용자가 고른 멤버. 아직 안 골랐으면 null.
-  Member? memberOf(String userId) =>
-      members.where((m) => m.userId == userId).firstOrNull;
+  /// 멤버 id (멤버 순서). 지출 나누기의 나머지를 앞사람부터 주는 기준.
+  List<String> get memberIds => [for (final m in members) m.id];
+
+  Member? memberById(String id) => members.where((m) => m.id == id).firstOrNull;
+
+  /// 이 여행에서 [userId] 사용자가 고른 멤버. 아직 안 골랐거나 로그인 전이면 null.
+  Member? memberOf(String? userId) => userId == null
+      ? null
+      : members.where((m) => m.userId == userId).firstOrNull;
 }
