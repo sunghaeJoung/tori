@@ -229,7 +229,7 @@ class _Transfers extends ConsumerWidget {
   }
 }
 
-class _TransferCard extends StatelessWidget {
+class _TransferCard extends StatefulWidget {
   const _TransferCard({
     required this.transfer,
     required this.from,
@@ -248,11 +248,33 @@ class _TransferCard extends StatelessWidget {
 
   /// 현지 통화 환산 (원화 여행이면 null)
   final String? approx;
-  final VoidCallback onToggle;
+
+  /// 송금 완료 체크를 바꾼다. 끝날 때까지 버튼을 끈다.
+  final Future<void> Function() onToggle;
+
+  @override
+  State<_TransferCard> createState() => _TransferCardState();
+}
+
+class _TransferCardState extends State<_TransferCard> {
+  var _busy = false;
+
+  /// 빠르게 두 번 눌러 체크·해제가 엇갈려 저장되지 않게 하나씩만 보낸다.
+  Future<void> _toggle() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onToggle();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final _TransferCard(:transfer, :from, :to, :role, :approx) = widget;
     final done = transfer.done;
+    final onToggle = _busy ? null : _toggle;
     final text = Theme.of(context).textTheme;
     return Opacity(
       opacity: done ? 0.6 : 1,
@@ -290,7 +312,7 @@ class _TransferCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (role != null) Pill(role!),
+                  if (role != null) Pill(role),
                 ],
               ),
               Column(
@@ -301,7 +323,7 @@ class _TransferCard extends StatelessWidget {
                     formatMoney(transfer.amountKrw, Currency.krw),
                     style: amountLargeStyle,
                   ),
-                  if (approx != null) Text(approx!, style: text.bodySmall),
+                  if (approx != null) Text(approx, style: text.bodySmall),
                 ],
               ),
               done

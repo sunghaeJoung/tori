@@ -23,6 +23,14 @@ final latestRateProvider = FutureProvider.autoDispose
       (ref, currency) => ref.watch(frankfurterApiProvider).latest(currency),
     );
 
+/// [currency]의 오늘 환율. 원화면 1 (불러올 필요 없음).
+final todayRateProvider = Provider.autoDispose
+    .family<AsyncValue<ExchangeRate>, Currency>(
+      (ref, currency) => currency == Currency.krw
+          ? AsyncData(ExchangeRate.won(ref.watch(todayProvider)))
+          : ref.watch(latestRateProvider(currency)),
+    );
+
 /// "약 ○○원" 표시에 쓰는 환율.
 /// 정산을 확정했으면 그 환율, 원화 여행이면 1, 아니면 오늘 환율.
 /// 오늘 환율을 못 불러오면 에러 상태 (화면은 통화별로 보여주고 다시 시도할 수 있다).
@@ -31,10 +39,7 @@ final referenceRateProvider = Provider.autoDispose
       final trip = ref.watch(tripDetailProvider(tripId)).value;
       if (trip == null) return const AsyncLoading();
       if (trip.settled) return AsyncData(trip.settledRate!);
-      if (trip.currency == Currency.krw) {
-        return AsyncData(ExchangeRate.won(ref.watch(todayProvider)));
-      }
-      return ref.watch(latestRateProvider(trip.currency));
+      return ref.watch(todayRateProvider(trip.currency));
     });
 
 /// 멤버별 잔액과 총 지출.
@@ -44,7 +49,12 @@ final balancesProvider = FutureProvider.autoDispose
         ref.watch(tripDetailProvider(tripId).future),
         ref.watch(expensesProvider(tripId).future),
       ).wait;
-      return TripBalances(trip.memberIds, expenses, local: trip.currency);
+      return TripBalances(
+        trip.memberIds,
+        expenses.items,
+        local: trip.currency,
+        expensesVersion: expenses.version,
+      );
     });
 
 final settlementRepositoryProvider = Provider<SettlementRepository>(
@@ -80,7 +90,7 @@ class SettlementActions {
           .read(settlementRepositoryProvider)
           .confirm(
             trip.id,
-            expensesVersion: trip.expensesVersion,
+            expensesVersion: balances.expensesVersion,
             rate: rate,
             transfers: balances.plan(rate),
           );
@@ -93,7 +103,9 @@ class SettlementActions {
     }
     _ref
       ..invalidate(tripDetailProvider(trip.id))
-      ..invalidate(transfersProvider(trip.id));
+      ..invalidate(transfersProvider(trip.id))
+      // 홈에서 "지난 여행"으로 옮겨 보이게
+      ..invalidate(myTripsProvider);
   }
 
   Future<void> setDone(

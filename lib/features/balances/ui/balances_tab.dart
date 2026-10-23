@@ -51,7 +51,8 @@ class BalancesTab extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: switch (rate) {
-                  AsyncData(:final value) =>
+                  // 다시 불러오는 중에도 앞 환율로 환산해 보여주고 있다
+                  AsyncValue(:final value?) =>
                     trip.settled
                         ? NoticeBox('정산 환율(${value.label})로 계산한 금액이에요.')
                         : NoticeBox(

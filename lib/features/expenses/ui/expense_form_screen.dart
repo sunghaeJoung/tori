@@ -49,7 +49,8 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
         : ref.watch(
             expensesProvider(tripId).select(
               (list) => list.whenData(
-                (list) => list.where((e) => e.id == expenseId).firstOrNull,
+                (list) =>
+                    list.items.where((e) => e.id == expenseId).firstOrNull,
               ),
             ),
           );

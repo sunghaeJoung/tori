@@ -24,9 +24,8 @@ class ExpenseList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final expenses = ref.watch(expensesProvider(trip.id));
     return AsyncView(
-      value: expenses,
+      value: ref.watch(expensesProvider(trip.id)),
       onRetry: () => ref.invalidate(expensesProvider(trip.id)),
       errorTitle: '지출을 불러오지 못했어요',
       data: (expenses) => RefreshIndicator(
@@ -35,10 +34,10 @@ class ExpenseList extends ConsumerWidget {
           // 아래 '지출 추가' 버튼에 마지막 지출이 가리지 않게
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
           children: [
-            if (expenses.isEmpty)
+            if (expenses.items.isEmpty)
               const EmptyState(title: '아직 지출이 없어요', message: '첫 지출을 추가해보세요')
             else
-              ..._groupByDay(expenses)
+              ..._groupByDay(expenses.items)
                   .map((day) => _DayGroup(trip: trip, me: me, expenses: day)),
           ],
         ),

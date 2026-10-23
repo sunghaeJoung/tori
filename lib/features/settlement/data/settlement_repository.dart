@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/exchange_rate/exchange_rate.dart';
 import '../../../core/money/settlement.dart';
 import '../../../shared/dates.dart';
-import '../../trips/data/trip.dart';
 import 'settlement.dart';
 
 class SettlementRepository {
@@ -23,7 +22,7 @@ class SettlementRepository {
   }
 
   /// 환율과 송금 목록으로 정산을 확정한다. 이미 정산했으면 송금 목록을 새로 만든다.
-  /// [expensesVersion]은 송금 목록을 계산할 때 본 지출 버전([TripDetail.expensesVersion]).
+  /// [expensesVersion]은 송금 목록을 계산할 때 본 지출 버전([TripBalances.expensesVersion]).
   /// 그사이 지출이 바뀌었으면 [ExpensesChangedDuringSettlement].
   Future<void> confirm(
     String tripId, {

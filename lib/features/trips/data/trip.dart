@@ -92,7 +92,6 @@ class TripDetail {
     required this.currency,
     required this.inviteCode,
     required this.members,
-    required this.expensesVersion,
     this.settledRate,
     this.settlementStale = false,
   });
@@ -113,7 +112,6 @@ class TripDetail {
             date: DateTime.parse(json['settle_rate_date'] as String),
           ),
     settlementStale: _isStale(json),
-    expensesVersion: json['expenses_changed_at'] as String,
     members: [
       for (final m in json['members'] as List)
         Member.fromJson(m as Map<String, dynamic>),
@@ -133,9 +131,6 @@ class TripDetail {
 
   /// 정산한 뒤 지출이 바뀌었다. 다시 정산해야 한다.
   final bool settlementStale;
-
-  /// 지출이 마지막으로 바뀐 시각(DB 값 그대로). 정산을 확정할 때 이 버전으로 계산했다고 알린다.
-  final String expensesVersion;
 
   /// 정산을 확정했고 그 뒤로 지출이 바뀌지 않았다.
   bool get settled => settledRate != null && !settlementStale;

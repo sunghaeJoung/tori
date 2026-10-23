@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 
 import '../../../core/exchange_rate/exchange_rate.dart';
 import '../../../core/money/currency.dart';
+import '../../../core/money/money_format.dart';
 import '../../../core/money/settlement.dart';
 import '../../expenses/data/expense.dart';
 
@@ -46,15 +47,25 @@ class SettlementTransfer {
 
 /// 여행의 지출을 멤버별로 정리한 값 (요약 카드, 잔액 탭, 정산).
 class TripBalances {
-  TripBalances(this.memberIds, List<Expense> expenses, {required this.local})
-    : byCurrency = computeBalances(memberIds, expenses.map((e) => e.toEntry())),
-      totals = _totals(expenses, local);
+  TripBalances(
+    this.memberIds,
+    List<Expense> expenses, {
+    required this.local,
+    required this.expensesVersion,
+  }) : byCurrency = computeBalances(
+         memberIds,
+         expenses.map((e) => e.toEntry()),
+       ),
+       totals = _totals(expenses, local);
 
   /// 멤버 순서.
   final List<String> memberIds;
 
   /// 여행 현지 통화.
   final Currency local;
+
+  /// 이 잔액을 계산한 지출의 버전 ([TripExpenses.version]).
+  final String expensesVersion;
 
   /// 통화별·멤버별 잔액 (최소 단위). 양수 = 받을 돈. 지출이 있는 통화만.
   final Map<Currency, Map<String, int>> byCurrency;
@@ -91,6 +102,11 @@ class TripBalances {
             ? Decimal.fromInt(t.value)
             : rate.toKrw(t.value)),
   );
+
+  /// 총 지출 표기: `약 1,049,260원` (원화 여행은 정확한 `900,000원`)
+  String totalLabel(ExchangeRate rate) => rate.isWon
+      ? formatMoney(totals[Currency.krw] ?? 0, Currency.krw)
+      : formatApproxWon(totalInKrw(rate));
 
   /// 누가 누구에게 얼마를 보내면 되는지 (송금 건수가 적게, 10원 단위).
   List<Transfer> plan(ExchangeRate rate) => settle(inKrw(rate));

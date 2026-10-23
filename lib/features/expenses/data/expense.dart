@@ -27,6 +27,16 @@ class ExpenseNotFound implements Exception {
   const ExpenseNotFound();
 }
 
+/// 여행의 지출 목록과 그 버전(trips.expenses_changed_at).
+/// 한 번에 조회해서 둘이 항상 맞는다. 정산을 확정할 때 이 버전으로 계산했다고 알린다.
+class TripExpenses {
+  const TripExpenses(this.items, {required this.version});
+
+  /// 최근 날짜 순.
+  final List<Expense> items;
+  final String version;
+}
+
 /// 지출 한 건과 멤버별 부담액.
 class Expense {
   const Expense({

@@ -113,9 +113,7 @@ class _RateFormState extends ConsumerState<_RateForm> {
   @override
   Widget build(BuildContext context) {
     final local = widget.trip.currency;
-    final AsyncValue<ExchangeRate> latest = local == Currency.krw
-        ? AsyncData(ExchangeRate.won(ref.watch(todayProvider)))
-        : ref.watch(latestRateProvider(local));
+    final latest = ref.watch(todayRateProvider(local));
     final rate = _manual ? _manualRate() : latest.value;
     final isWonTrip = local == Currency.krw;
 
@@ -339,11 +337,7 @@ class _Totals extends StatelessWidget {
           ],
           row('정산할 총액', null, switch (rate) {
             null => '-',
-            _ when isWonTrip => formatMoney(
-              balances.totals[Currency.krw] ?? 0,
-              Currency.krw,
-            ),
-            final rate => formatApproxWon(balances.totalInKrw(rate)),
+            final rate => balances.totalLabel(rate),
           }, total: true),
         ],
       ),

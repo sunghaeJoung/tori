@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
-import '../../../core/money/currency.dart';
-import '../../../core/money/money_format.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/tori_mascot.dart';
 import '../../trips/providers.dart';
@@ -26,9 +24,7 @@ class SettledScreen extends ConsumerWidget {
     final summary = switch ((trip, balances, trip?.settledRate)) {
       (final trip?, final balances?, final rate?) => (
         trip: trip,
-        total: rate.isWon
-            ? formatMoney(balances.totals[Currency.krw] ?? 0, Currency.krw)
-            : formatApproxWon(balances.totalInKrw(rate)),
+        total: balances.totalLabel(rate),
       ),
       _ => null,
     };
