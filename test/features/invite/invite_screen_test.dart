@@ -47,11 +47,11 @@ void main() {
   testWidgets('여행방으로 가기 / 닫기', (tester) async {
     await pumpApp(tester, location: Routes.invite('t1'));
     await tapButton<TextButton>(tester, '여행방으로 가기');
-    expect(appBarTitle('여행방'), findsOneWidget);
+    expect(inTripRoom, findsOneWidget);
 
     await pumpApp(tester, location: Routes.invite('t1'));
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
-    expect(appBarTitle('여행방'), findsOneWidget);
+    expect(inTripRoom, findsOneWidget);
   });
 }
