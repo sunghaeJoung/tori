@@ -19,6 +19,10 @@ String formatDateRange(DateTime start, DateTime end) {
   return '$startText – $endText';
 }
 
+/// 환율 기준일 표기: `2026년 11월 9일`
+String formatLongDate(DateTime date) =>
+    '${date.year}년 ${date.month}월 ${date.day}일';
+
 /// 지출 날짜 표기: `11월 6일 (금)`
 String formatMonthDay(DateTime date) =>
     '${date.month}월 ${date.day}일 (${_weekdays[date.weekday - 1]})';

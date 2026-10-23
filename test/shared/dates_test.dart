@@ -21,6 +21,10 @@ void main() {
     expect(formatMonthDay(DateTime(2026, 11, 8)), '11월 8일 (일)');
   });
 
+  test('환율 기준일', () {
+    expect(formatLongDate(DateTime(2026, 11, 9)), '2026년 11월 9일');
+  });
+
   test('DB 날짜 문자열', () {
     expect(toDbDate(DateTime(2026, 1, 5)), '2026-01-05');
   });

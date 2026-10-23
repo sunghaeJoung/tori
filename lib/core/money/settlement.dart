@@ -112,7 +112,7 @@ List<Transfer> settle(Map<String, Decimal> krwBalances) {
     final d = _largest(debtors);
     final x = c.amount < d.amount ? c.amount : d.amount;
 
-    final rounded = x.round(scale: -1).toBigInt().toInt();
+    final rounded = roundTo10Won(x);
     if (rounded > 0) {
       transfers.add((from: d.id, to: c.id, amountKrw: rounded));
     }
@@ -124,6 +124,9 @@ List<Transfer> settle(Map<String, Decimal> krwBalances) {
   }
   return transfers;
 }
+
+/// 원화 금액을 10원 단위로 반올림한다 (5원 이상 올림). 송금액과 "약 ○○원" 표시에 쓴다.
+int roundTo10Won(Decimal krw) => krw.round(scale: -1).toBigInt().toInt();
 
 class _Party {
   _Party(this.id, this.amount);
