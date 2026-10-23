@@ -19,5 +19,11 @@ String formatDateRange(DateTime start, DateTime end) {
   return '$startText – $endText';
 }
 
+/// 지출 날짜 표기: `11월 6일 (금)`
+String formatMonthDay(DateTime date) =>
+    '${date.month}월 ${date.day}일 (${_weekdays[date.weekday - 1]})';
+
+const _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+
 /// DB `date` 열에 넣는 문자열: `2026-11-06`
 String toDbDate(DateTime date) => _db.format(date);

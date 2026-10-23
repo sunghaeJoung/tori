@@ -16,6 +16,11 @@ void main() {
     );
   });
 
+  test('지출 날짜는 월·일·요일', () {
+    expect(formatMonthDay(DateTime(2026, 11, 6)), '11월 6일 (금)');
+    expect(formatMonthDay(DateTime(2026, 11, 8)), '11월 8일 (일)');
+  });
+
   test('DB 날짜 문자열', () {
     expect(toDbDate(DateTime(2026, 1, 5)), '2026-01-05');
   });
