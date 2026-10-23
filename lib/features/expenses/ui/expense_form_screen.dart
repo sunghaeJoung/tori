@@ -24,17 +24,28 @@ import 'category_icon.dart';
 /// 08 지출 추가 · 수정. [expenseId]가 있으면 수정.
 ///
 /// 여행(과 고칠 지출)을 불러오면 [_ExpenseEditor]가 입력을 맡는다.
-class ExpenseFormScreen extends ConsumerWidget {
+class ExpenseFormScreen extends ConsumerStatefulWidget {
   const ExpenseFormScreen({super.key, required this.tripId, this.expenseId});
 
   final String tripId;
   final String? expenseId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
+}
+
+class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
+  /// 한 번 찾은 고칠 지출. 그 뒤로 목록에서 빠져도(내가 지워서 닫히는 중이거나 친구가 지움)
+  /// 입력 화면을 그대로 둔다. 친구가 지웠으면 저장할 때 알려준다.
+  Expense? _loaded;
+
+  @override
+  Widget build(BuildContext context) {
+    final tripId = widget.tripId;
+    final expenseId = widget.expenseId;
     final trip = ref.watch(tripDetailProvider(tripId));
-    final expense = expenseId == null
-        ? const AsyncData<Expense?>(null)
+    final expense = expenseId == null || _loaded != null
+        ? AsyncData<Expense?>(_loaded)
         : ref.watch(
             expensesProvider(tripId).select(
               (list) => list.whenData(
@@ -42,6 +53,7 @@ class ExpenseFormScreen extends ConsumerWidget {
               ),
             ),
           );
+    _loaded = expense.value;
 
     if ((trip.value, expense.value) case (final trip?, final found)
         when expenseId == null || found != null) {
@@ -122,7 +134,14 @@ class _ExpenseEditorState extends ConsumerState<_ExpenseEditor> {
 
   void _close() => context.popOrGo(Routes.trip(widget.trip.id));
 
+  /// 입력을 고쳤다. 삭제를 한 번 눌러 둔 상태였으면 풀어서, 나중에 실수로 눌러도 바로 지워지지 않게 한다.
+  void _edited([VoidCallback? change]) => setState(() {
+    change?.call();
+    _confirmDelete = false;
+  });
+
   Future<void> _run(Future<void> Function() action, String failMessage) async {
+    if (_saving) return; // 빠르게 두 번 눌러도 한 번만
     setState(() => _saving = true);
     try {
       await action();
@@ -185,12 +204,12 @@ class _ExpenseEditorState extends ConsumerState<_ExpenseEditor> {
         trip: widget.trip,
         draft: _draft,
         enabled: !_saving,
-        onChanged: () => setState(() {}),
+        onChanged: _edited,
       ),
       bottomNavigationBar: _KeypadArea(
         draft: _draft,
         saving: _saving,
-        onPress: (key) => setState(() => _draft.press(key)),
+        onPress: (key) => _edited(() => _draft.press(key)),
         onSave: _save,
       ),
     );
@@ -220,11 +239,12 @@ class _Form extends StatelessWidget {
   }
 
   Future<void> _pickDate(BuildContext context) async {
+    final date = draft.spentAt;
     final picked = await showDatePicker(
       context: context,
-      initialDate: draft.spentAt,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDate: date,
+      firstDate: date.year < 2020 ? date : DateTime(2020),
+      lastDate: date.year > 2100 ? date : DateTime(2100),
     );
     if (picked != null) _update(() => draft.spentAt = picked);
   }

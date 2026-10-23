@@ -1,5 +1,4 @@
 import 'package:decimal/decimal.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
@@ -86,7 +85,7 @@ class ExpenseDraft {
   /// 키패드로 누른 금액을 화면 표기로: `1,280.5`
   String get amountDisplay {
     final [whole, ...rest] = amountText.split('.');
-    final grouped = _thousands.format(int.tryParse(whole) ?? 0);
+    final grouped = formatGrouped(int.tryParse(whole) ?? 0);
     return rest.isEmpty ? grouped : '$grouped.${rest.first}';
   }
 
@@ -119,5 +118,3 @@ class ExpenseDraft {
   static String amountTextOf(int amount, Currency currency) =>
       currency.toMajor(amount).toString();
 }
-
-final _thousands = NumberFormat.decimalPattern('en_US');
