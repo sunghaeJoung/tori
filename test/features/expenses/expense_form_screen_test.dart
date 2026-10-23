@@ -136,6 +136,33 @@ void main() {
     expect(find.text('맥주'), findsNothing);
   });
 
+  testWidgets('삭제를 한 번 누른 뒤 입력을 고치면 다시 두 번 눌러야 한다', (tester) async {
+    final expenses = FakeExpensesRepository(expenses: sampleExpenses());
+    await pumpForm(tester, expenseId: 'e3', expenses: expenses);
+
+    await tester.tap(find.text('삭제'));
+    await tester.pump();
+    await press(tester, '1');
+    expect(find.text('삭제'), findsOneWidget);
+
+    await tester.tap(find.text('삭제'));
+    await tester.pump();
+    expect(expenses.deleted, isEmpty);
+  });
+
+  testWidgets('저장을 빠르게 두 번 눌러도 한 번만 저장한다', (tester) async {
+    final expenses = FakeExpensesRepository();
+    await pumpForm(tester, expenses: expenses);
+    await press(tester, '5');
+
+    // 화면이 다시 그려져 버튼이 꺼지기 전에 두 번 눌린 상황
+    saveButton(tester).onPressed!
+      ..call()
+      ..call();
+    await tester.pumpAndSettle();
+    expect(expenses.saved, hasLength(1));
+  });
+
   testWidgets('없는 지출이면 안내', (tester) async {
     await pumpForm(tester, expenseId: 'gone');
     expect(find.text('지출을 찾을 수 없어요'), findsOneWidget);
