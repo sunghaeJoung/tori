@@ -1,34 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
-import '../../../shared/widgets/screen_placeholder.dart';
+import '../../../core/supabase/supabase_client.dart';
+import '../../../shared/widgets/async_view.dart';
+import '../../expenses/providers.dart';
+import '../../expenses/ui/expense_list.dart';
+import '../providers.dart';
 
-/// 07·09·11 여행방 (지출 내역 · 잔액 · 정산 탭).
-class TripScreen extends StatelessWidget {
+/// 07 여행방. 잔액·정산 탭은 7단계에서 붙인다.
+class TripScreen extends ConsumerWidget {
   const TripScreen({super.key, required this.tripId});
 
   final String tripId;
 
   @override
-  Widget build(BuildContext context) {
-    return ScreenPlaceholder(
-      title: '여행방',
-      stage: 6,
-      actions: [
-        FilledButton(
-          onPressed: () => context.push(Routes.newExpense(tripId)),
-          child: const Text('지출 추가'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trip = ref.watch(tripDetailProvider(tripId));
+    // 화면이 열려 있는 동안 친구들이 바꾼 지출을 바로 반영한다
+    ref.watch(tripLiveUpdatesProvider(tripId));
+    final userId = ref.watch(authUserProvider).value?.id;
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: '홈으로',
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(Routes.home),
         ),
-        FilledButton.tonal(
-          onPressed: () => context.push(Routes.invite(tripId)),
-          child: const Text('친구 초대'),
+        title: Text(trip.value?.name ?? ''),
+        actions: [
+          IconButton(
+            tooltip: '친구 초대',
+            icon: const Icon(Icons.person_add_alt),
+            onPressed: () => context.push(Routes.invite(tripId)),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: AsyncView(
+        value: trip,
+        onRetry: () => ref.invalidate(tripDetailProvider(tripId)),
+        errorTitle: '여행을 불러오지 못했어요',
+        data: (trip) => ExpenseList(
+          trip: trip,
+          me: userId == null ? null : trip.memberOf(userId),
         ),
-        TextButton(
-          onPressed: () => context.push(Routes.rate(tripId)),
-          child: const Text('정산하기'),
-        ),
-      ],
+      ),
+      floatingActionButton: trip.hasValue
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push(Routes.newExpense(tripId)),
+              icon: const Icon(Icons.add),
+              label: const Text('지출 추가'),
+            )
+          : null,
     );
   }
 }
