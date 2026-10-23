@@ -327,8 +327,15 @@ Future<void> main(List<String> args) async {
   // 정산 (confirm_settlement RPC)
   await a.rpc('save_expense', expense(id, members)); // 민지가 680.00위안, 4명
   // 1위안 = 192.35원: 수아·지훈·하린이 민지에게 32,700원씩 (170.00위안 × 192.35 = 32,699.5)
-  Map<String, Object?> settlement(String tripId, {int amount = 32700}) => {
+  Future<Map<String, Object?>> settlement(
+    String tripId, {
+    int amount = 32700,
+  }) async => {
     'p_trip_id': tripId,
+    'p_expenses_changed_at': (await a.rows(
+      'trips',
+      'id=eq.$id&select=expenses_changed_at',
+    )).single['expenses_changed_at'],
     'p_rate': 192.35,
     'p_rate_date': '2026-11-09',
     'p_from': [for (final m in members.skip(1)) m['id']],
@@ -337,11 +344,16 @@ Future<void> main(List<String> args) async {
   };
   check(
     'C는 A의 여행을 정산할 수 없다',
-    deniedWith(await c.rpc('confirm_settlement', settlement(id)), '여행 멤버가 아니다'),
+    deniedWith(
+      await c.rpc('confirm_settlement', await settlement(id)),
+      '여행 멤버가 아니다',
+    ),
   );
   check(
     '송금액은 10원 단위만',
-    !isOk(await a.rpc('confirm_settlement', settlement(id, amount: 32699))),
+    !isOk(
+      await a.rpc('confirm_settlement', await settlement(id, amount: 32699)),
+    ),
   );
   check(
     '정산 열(환율·확정 시각)은 직접 못 바꾼다',
@@ -352,10 +364,20 @@ Future<void> main(List<String> args) async {
       'permission denied',
     ),
   );
-  final confirmed = await b.rpc('confirm_settlement', settlement(id));
+  check(
+    '계산한 뒤 지출이 바뀌었으면 옛 송금 목록으로 확정하지 못한다',
+    deniedWith(
+      await a.rpc('confirm_settlement', {
+        ...await settlement(id),
+        'p_expenses_changed_at': '2000-01-01T00:00:00Z',
+      }),
+      '그사이 지출이 바뀌었다',
+    ),
+  );
+  final confirmed = await b.rpc('confirm_settlement', await settlement(id));
   final settled = (await a.rows(
     'trips',
-    'id=eq.$id&select=settle_rate,settled_at,expenses_changed_at,changed_at',
+    'id=eq.$id&select=settle_rate,settled_at,expenses_changed_at,settlements_changed_at',
   )).single;
   final transfers = await a.rows('settlements', 'trip_id=eq.$id&select=*');
   check(
@@ -379,13 +401,14 @@ Future<void> main(List<String> args) async {
   });
   final afterDone = (await a.rows(
     'trips',
-    'id=eq.$id&select=changed_at',
+    'id=eq.$id&select=settlements_changed_at',
   )).single;
   check(
-    '송금 완료를 체크하면 여행의 changed_at이 갱신된다 (실시간 알림용)',
+    '송금 완료를 체크하면 여행의 settlements_changed_at이 갱신된다 (실시간 알림용)',
     isOk(done) &&
-        DateTime.parse(afterDone['changed_at'] as String)
-            .isAfter(DateTime.parse(settled['changed_at'] as String)),
+        DateTime.parse(
+          afterDone['settlements_changed_at'] as String,
+        ).isAfter(DateTime.parse(settled['settlements_changed_at'] as String)),
   );
   await a.rpc('save_expense', expense(id, members, amount: 100));
   final stale = (await a.rows(
@@ -399,7 +422,7 @@ Future<void> main(List<String> args) async {
   );
   check(
     '정산을 다시 하면 송금 목록을 새로 만든다',
-    isOk(await a.rpc('confirm_settlement', settlement(id))) &&
+    isOk(await a.rpc('confirm_settlement', await settlement(id))) &&
         (await a.rows('settlements', 'trip_id=eq.$id&select=id')).length == 3 &&
         (await a.rows(
           'settlements',
