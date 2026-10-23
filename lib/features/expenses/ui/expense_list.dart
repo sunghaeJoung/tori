@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
-import '../../../app/theme.dart';
 import '../../../core/money/money_format.dart';
-import '../../../core/money/settlement.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -15,7 +13,7 @@ import '../data/expense.dart';
 import '../providers.dart';
 import 'category_icon.dart';
 
-/// 07 여행방의 지출 탭: 총 지출·내 잔액 카드와 날짜별 지출 목록.
+/// 07 여행방의 지출 탭: 날짜별 지출 목록.
 class ExpenseList extends ConsumerWidget {
   const ExpenseList({super.key, required this.trip, required this.me});
 
@@ -37,8 +35,6 @@ class ExpenseList extends ConsumerWidget {
           // 아래 '지출 추가' 버튼에 마지막 지출이 가리지 않게
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
           children: [
-            _SummaryCard(trip: trip, expenses: expenses, me: me),
-            const SizedBox(height: 16),
             if (expenses.isEmpty)
               const EmptyState(title: '아직 지출이 없어요', message: '첫 지출을 추가해보세요')
             else
@@ -58,97 +54,6 @@ class ExpenseList extends ConsumerWidget {
       days.last.add(e);
     }
     return days;
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.trip,
-    required this.expenses,
-    required this.me,
-  });
-
-  final TripDetail trip;
-  final List<Expense> expenses;
-  final Member? me;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    // 현지 통화는 항상 먼저, 원화(미리 결제한 항공권 등)는 있으면 뒤에
-    final totals = {trip.currency: 0};
-    for (final e in expenses) {
-      totals.update(
-        e.currency,
-        (sum) => sum + e.amount,
-        ifAbsent: () => e.amount,
-      );
-    }
-    final balances = computeBalances(
-      trip.memberIds,
-      expenses.map((e) => e.toEntry()),
-    );
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: ToriColors.surface,
-        border: Border.all(color: ToriColors.cardBorder),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 2,
-        children: [
-          Text('총 지출', style: text.bodySmall),
-          Text(
-            totals.entries.map((t) => formatMoney(t.value, t.key)).join(' + '),
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
-          ),
-          if (me case final me? when balances.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Divider(height: 1),
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '내 잔액',
-                  style: text.bodyMedium?.copyWith(color: ToriColors.textMuted),
-                ),
-                const Spacer(),
-                Flexible(
-                  flex: 3,
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    children: [
-                      for (final MapEntry(key: c, value: byMember)
-                          in balances.entries)
-                        MoneyText(
-                          byMember[me.id]!,
-                          c,
-                          balance: true,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
   }
 }
 
