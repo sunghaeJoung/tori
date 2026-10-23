@@ -1,9 +1,9 @@
 // ignore_for_file: avoid_print
-// RLS·RPC 점검: 서로 다른 익명 사용자 둘(A, B)로 남의 여행에 접근할 수 없는지 확인한다.
+// RLS·RPC 점검: 서로 다른 익명 사용자(A, B, C)로 남의 여행에 접근할 수 없는지 확인한다.
 //
 // 실행: dart run tool/rls_check.dart [env/dev.json]
 //
-// 실제 Supabase 프로젝트에 익명 사용자 2명과 "RLS 점검" 여행 1개가 남는다.
+// 실제 Supabase 프로젝트에 익명 사용자 3명과 여행 2개("RLS 점검", "C 여행")가 남는다.
 // 앱과 같은 공개용(publishable) 키만 쓴다.
 import 'dart:convert';
 import 'dart:io';
@@ -88,8 +88,8 @@ Future<void> main(List<String> args) async {
   check(
     'B는 A의 여행에 지출을 못 넣는다',
     deniedWith(
-      await b.insert('expenses', expense(id, members[1]['id'] as String)),
-      'row-level security',
+      await b.rpc('save_expense', expense(id, members, paidBy: 1)),
+      '여행 멤버가 아니다',
     ),
   );
   check(
@@ -185,23 +185,157 @@ Future<void> main(List<String> args) async {
     (again['members'] as List)[1]['is_me'] == true,
   );
 
+  // 지출 (save_expense RPC)
+  final changedBefore = await _expensesChangedAt(a, id);
+  final saved = await a.rpc('save_expense', expense(id, members));
+  final expenseId = jsonDecode(saved.body) as String;
+  final rows = jsonDecode(
+    (await b.get(
+      'expenses',
+      'id=eq.$expenseId&select=amount,expense_splits(member_id,share_amount)',
+    )).body,
+  ) as List;
+  final shares = [
+    for (final s in rows.single['expense_splits'] as List) s['share_amount'],
+  ]..sort();
+  check(
+    'A가 지출을 저장하고 B(멤버)가 분배까지 본다 (680.00위안 ÷ 4)',
+    isOk(saved) && shares.join(',') == '17000,17000,17000,17000',
+  );
+  check(
+    '지출이 바뀌면 여행의 expenses_changed_at이 갱신된다 (실시간 알림용)',
+    (await _expensesChangedAt(a, id)).isAfter(changedBefore),
+  );
+  final edited = await b.rpc(
+    'save_expense',
+    expense(id, members, expenseId: expenseId, amount: 5850, split: [0, 1]),
+  );
+  final editedSplits = jsonDecode(
+    (await a.get('expense_splits', 'expense_id=eq.$expenseId&select=*')).body,
+  ) as List;
+  check(
+    'B가 지출을 고치면 분배도 통째로 바뀐다 (2명)',
+    isOk(edited) && editedSplits.length == 2,
+  );
+  check(
+    '지출·분배를 직접 넣거나 고칠 수 없다 (RPC로만)',
+    deniedWith(
+          await a.insert('expenses', {
+            'trip_id': id,
+            'title': '직접',
+            'amount': 100,
+            'currency': 'CNY',
+            'paid_by': members.first['id'],
+            'category': 'food',
+            'spent_at': '2026-11-06',
+          }),
+          'permission denied',
+        ) &&
+        deniedWith(
+          await a.insert('expense_splits', {
+            'expense_id': expenseId,
+            'member_id': members.first['id'],
+            'share_amount': 1,
+          }),
+          'permission denied',
+        ) &&
+        deniedWith(
+          await a.patch('expenses', 'id=eq.$expenseId', {'amount': 1}),
+          'permission denied',
+        ),
+  );
+
+  // C: 아무 여행에도 들어가지 않은 사용자. 자기 여행을 만들어 둔다
+  final c = _Client(url, key);
+  await c.signUpAnonymously();
+  final cTrip = jsonDecode(
+    (await c.rpc('create_trip', {
+      'p_name': 'C 여행',
+      'p_start_date': '2026-11-06',
+      'p_end_date': '2026-11-09',
+      'p_local_currency': 'CNY',
+      'p_my_name': '외부인',
+    })).body,
+  ) as String;
+  final cMembers = jsonDecode(
+    (await c.get('members', 'trip_id=eq.$cTrip&select=id')).body,
+  ) as List;
+  check(
+    'C에게 A 여행의 지출·분배가 안 보인다',
+    isEmptyOrDenied(await c.get('expenses', 'trip_id=eq.$id')) &&
+        isEmptyOrDenied(
+          await c.get('expense_splits', 'expense_id=eq.$expenseId'),
+        ),
+  );
+  check(
+    'C는 자기 여행 id를 내세워 A의 지출을 고칠 수 없다',
+    deniedWith(
+      await c.rpc(
+        'save_expense',
+        expense(cTrip, cMembers, expenseId: expenseId),
+      ),
+      '지출을 찾을 수 없다',
+    ),
+  );
+  check(
+    'C는 A의 지출을 지울 수 없다',
+    isEmptyOrDenied(await c.delete('expenses', 'id=eq.$expenseId')) &&
+        (jsonDecode(
+              (await a.get('expenses', 'id=eq.$expenseId')).body,
+            ) as List).length ==
+            1,
+  );
+
   // DB 제약조건
   check(
-    '분배 없이 지출만 넣으면 거부 (분배 합계 = 지출 금액)',
+    '분배 합계가 금액과 다르면 거부',
     deniedWith(
-      await a.insert('expenses', expense(id, members.first['id'] as String)),
+      await a.rpc(
+        'save_expense',
+        expense(id, members)..['p_shares'] = [17000, 17000, 17000, 16999],
+      ),
       '분배 합계',
+    ),
+  );
+  check(
+    '나눌 사람이 없으면 거부',
+    deniedWith(
+      await a.rpc('save_expense', expense(id, members, split: [])),
+      '나눌 사람',
     ),
   );
   check(
     '여행 통화가 아닌 지출은 거부 (CNY 여행에 USD)',
     deniedWith(
-      await a.insert(
-        'expenses',
-        expense(id, members.first['id'] as String, currency: 'USD'),
-      ),
+      await a.rpc('save_expense', expense(id, members, currency: 'USD')),
       '지출 통화',
     ),
+  );
+  check(
+    '다른 여행의 멤버가 내거나 나눠 낼 수 없다',
+    !isOk(
+          await a.rpc(
+            'save_expense',
+            expense(id, members)..['p_paid_by'] = cMembers.first['id'],
+          ),
+        ) &&
+        deniedWith(
+          await a.rpc(
+            'save_expense',
+            expense(id, members)
+              ..['p_member_ids'] = [cMembers.first['id']]
+              ..['p_shares'] = [68000],
+          ),
+          '다른 여행의 멤버',
+        ),
+  );
+  final deleted = await a.delete('expenses', 'id=eq.$expenseId');
+  check(
+    'A가 지출을 지우면 분배도 함께 지워진다',
+    isOk(deleted) &&
+        isEmptyOrDenied(
+          await a.get('expense_splits', 'expense_id=eq.$expenseId'),
+        ),
   );
   check(
     '초대 코드는 바꿀 수 없다',
@@ -222,19 +356,47 @@ Future<void> main(List<String> args) async {
   exit(_failed == 0 ? 0 : 1);
 }
 
+/// save_expense RPC 인자. 기본은 680.00위안, 첫 멤버가 내고 전원이 균등하게 나눈다.
+/// [split]은 나눌 멤버의 순번.
 Map<String, Object?> expense(
   String tripId,
-  String paidBy, {
+  List<dynamic> members, {
+  String? expenseId,
+  int paidBy = 0,
+  int amount = 68000,
   String currency = 'CNY',
-}) => {
-  'trip_id': tripId,
-  'title': '훠궈',
-  'amount': 68000,
-  'currency': currency,
-  'paid_by': paidBy,
-  'category': 'food',
-  'spent_at': '2026-11-06',
-};
+  List<int>? split,
+}) {
+  final ids = [
+    for (final i in split ?? List.generate(members.length, (i) => i))
+      members[i]['id'],
+  ];
+  return {
+    'p_trip_id': tripId,
+    'p_expense_id': expenseId,
+    'p_title': '훠궈',
+    'p_amount': amount,
+    'p_currency': currency,
+    'p_paid_by': members[paidBy]['id'],
+    'p_category': 'food',
+    'p_spent_at': '2026-11-06',
+    'p_member_ids': ids,
+    'p_shares': [
+      for (var i = 0; i < ids.length; i++)
+        amount ~/ ids.length + (i < amount % ids.length ? 1 : 0),
+    ],
+  };
+}
+
+Future<DateTime> _expensesChangedAt(_Client client, String tripId) async {
+  final rows = jsonDecode(
+    (await client.get(
+      'trips',
+      'id=eq.$tripId&select=expenses_changed_at',
+    )).body,
+  ) as List;
+  return DateTime.parse(rows.single['expenses_changed_at'] as String);
+}
 
 var _failed = 0;
 
@@ -300,6 +462,9 @@ class _Client {
         headers: _headers,
         body: jsonEncode(body),
       );
+
+  Future<http.Response> delete(String table, String query) =>
+      http.delete(Uri.parse('$url/rest/v1/$table?$query'), headers: _headers);
 
   Future<http.Response> patch(
     String table,
