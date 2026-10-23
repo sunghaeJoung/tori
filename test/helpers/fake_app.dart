@@ -1,10 +1,13 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
+import 'package:tori/core/exchange_rate/exchange_rate.dart';
 import 'package:tori/core/money/currency.dart';
+import 'package:tori/core/money/settlement.dart';
 import 'package:tori/core/supabase/supabase_client.dart';
 import 'package:tori/features/expenses/data/expense.dart';
 import 'package:tori/features/expenses/data/expenses_repository.dart';
@@ -12,6 +15,9 @@ import 'package:tori/features/expenses/providers.dart';
 import 'package:tori/features/invite/data/invite_repository.dart';
 import 'package:tori/features/invite/providers.dart';
 import 'package:tori/features/onboarding/providers.dart';
+import 'package:tori/features/settlement/data/settlement.dart';
+import 'package:tori/features/settlement/data/settlement_repository.dart';
+import 'package:tori/features/settlement/providers.dart';
 import 'package:tori/features/trips/data/trip.dart';
 import 'package:tori/features/trips/data/trips_repository.dart';
 import 'package:tori/features/trips/providers.dart';
@@ -50,19 +56,28 @@ class FakeTripsRepository implements TripsRepository {
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
 
-  final _listeners = <void Function()>[];
+  /// 여행방 't1'의 현지 통화와 정산 상태.
+  Currency currency = Currency.cny;
+  ExchangeRate? settledRate;
+  bool settlementStale = false;
+
+  final _listeners = <void Function({required bool expenses})>[];
 
   /// 지금 실시간 구독 중인 곳 수.
   int get watching => _listeners.length;
 
-  void emitChange() {
+  /// 친구가 여행을 바꾼 것처럼 실시간 알림을 보낸다. 송금 완료 체크만이면 `expenses: false`.
+  void emitChange({bool expenses = true}) {
     for (final listener in List.of(_listeners)) {
-      listener();
+      listener(expenses: expenses);
     }
   }
 
   @override
-  void Function() watchChanges(String tripId, void Function() onChange) {
+  void Function() watchChanges(
+    String tripId,
+    void Function({required bool expenses}) onChange,
+  ) {
     _listeners.add(onChange);
     return () => _listeners.remove(onChange);
   }
@@ -102,9 +117,10 @@ class FakeTripsRepository implements TripsRepository {
       name: created.isEmpty ? '상하이 우정여행' : created.last.name,
       startDate: DateTime(2026, 11, 6),
       endDate: DateTime(2026, 11, 9),
-      currency: Currency.cny,
+      currency: currency,
       inviteCode: 'TR7K2QAB',
-      settled: false,
+      settledRate: settledRate,
+      settlementStale: settlementStale,
       members: [
         for (final (id, name) in sampleMembers)
           Member(id: id, name: name, userId: id == 'm1' ? fakeUser.id : null),
@@ -174,10 +190,17 @@ class FakeExpensesRepository implements ExpensesRepository {
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
 
+  /// 지출 버전 (trips.expenses_changed_at). 바꾸면 그 전 버전으로 한 정산 확정은 거절된다.
+  String version = '2026-11-07T00:00:00+00:00';
+
+  /// 지출 목록을 불러온 횟수.
+  var listCalls = 0;
+
   @override
-  Future<List<Expense>> list(String tripId) async {
+  Future<TripExpenses> list(String tripId) async {
+    listCalls++;
     if (failWith != null) throw failWith!;
-    return List.of(expenses);
+    return TripExpenses(List.of(expenses), version: version);
   }
 
   @override
@@ -270,6 +293,83 @@ List<Expense> sampleExpenses() => [
   ),
 ];
 
+/// 정산 저장소 가짜. 확정하면 [trips]의 여행 't1'이 정산된 상태가 된다.
+/// [expenses]의 지출 버전과 다른 버전으로 확정하면 거절한다.
+class FakeSettlementRepository implements SettlementRepository {
+  FakeSettlementRepository(this.trips, this.expenses);
+
+  final FakeTripsRepository trips;
+  final FakeExpensesRepository expenses;
+
+  /// 저장소에 있는 송금 목록.
+  final saved = <SettlementTransfer>[];
+  final confirmed = <(ExchangeRate rate, List<Transfer> transfers)>[];
+
+  /// 값이 있으면 모든 요청이 이 에러로 실패한다.
+  Object? failWith;
+
+  @override
+  Future<List<SettlementTransfer>> transfers(String tripId) async {
+    if (failWith != null) throw failWith!;
+    return List.of(saved);
+  }
+
+  @override
+  Future<void> confirm(
+    String tripId, {
+    required String expensesVersion,
+    required ExchangeRate rate,
+    required List<Transfer> transfers,
+  }) async {
+    if (failWith != null) throw failWith!;
+    if (expensesVersion != expenses.version) {
+      throw const ExpensesChangedDuringSettlement();
+    }
+    final plan = transfers;
+    confirmed.add((rate, plan));
+    trips
+      ..settledRate = rate
+      ..settlementStale = false;
+    saved
+      ..clear()
+      ..addAll([
+        for (final (i, t) in plan.indexed)
+          SettlementTransfer(
+            id: 's$i',
+            from: t.from,
+            to: t.to,
+            amountKrw: t.amountKrw,
+            done: false,
+          ),
+      ]);
+  }
+
+  /// 송금 완료 체크를 바꾼 횟수.
+  var setDoneCalls = 0;
+
+  @override
+  Future<void> setDone(String transferId, {required bool done}) async {
+    setDoneCalls++;
+    if (failWith != null) throw failWith!;
+    final i = saved.indexWhere((t) => t.id == transferId);
+    final t = saved[i];
+    saved[i] = SettlementTransfer(
+      id: t.id,
+      from: t.from,
+      to: t.to,
+      amountKrw: t.amountKrw,
+      done: done,
+    );
+  }
+}
+
+/// 테스트의 오늘 환율: 1위안 = 192.35원 (2026-11-09 기준).
+final sampleRate = ExchangeRate(
+  currency: Currency.cny,
+  krwPerUnit: Decimal.parse('192.35'),
+  date: DateTime(2026, 11, 9),
+);
+
 final fakeUser = User(
   id: 'user-1',
   appMetadata: const {},
@@ -299,6 +399,7 @@ TripSummary sampleTrip({
 );
 
 /// 앱을 띄우고, [location]이 있으면 그 주소로 이동한다.
+/// 오늘 환율은 [sampleRate]. [rateError]를 주면 환율을 못 불러온다.
 /// 다른 가짜가 필요하면 [overrides]로 넘긴다.
 Future<void> pumpApp(
   WidgetTester tester, {
@@ -307,10 +408,15 @@ Future<void> pumpApp(
   FakeTripsRepository? repository,
   FakeInviteRepository? invites,
   FakeExpensesRepository? expenses,
+  FakeSettlementRepository? settlements,
+  Object? rateError,
   List<Override> overrides = const [],
 }) async {
   final repo = repository ?? FakeTripsRepository();
+  final expenseRepo = expenses ?? FakeExpensesRepository();
   final container = ProviderContainer(
+    // 실패한 provider를 저절로 다시 시도하지 않는다 (테스트가 끝난 뒤 타이머가 남지 않게)
+    retry: (_, _) => null,
     overrides: [
       nicknameProvider.overrideWith(() => FakeNickname(nickname)),
       authUserProvider.overrideWith((ref) => fakeUser),
@@ -318,9 +424,16 @@ Future<void> pumpApp(
       inviteRepositoryProvider.overrideWithValue(
         invites ?? FakeInviteRepository(),
       ),
-      expensesRepositoryProvider.overrideWithValue(
-        expenses ?? FakeExpensesRepository(),
+      expensesRepositoryProvider.overrideWithValue(expenseRepo),
+      settlementRepositoryProvider.overrideWithValue(
+        settlements ?? FakeSettlementRepository(repo, expenseRepo),
       ),
+      latestRateProvider.overrideWith((ref, currency) async {
+        if (rateError != null) throw rateError;
+        return currency == Currency.cny
+            ? sampleRate
+            : throw UnimplementedError('테스트 환율은 위안만');
+      }),
       todayProvider.overrideWithValue(testToday),
       ...overrides,
     ],

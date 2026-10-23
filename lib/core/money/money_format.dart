@@ -3,6 +3,7 @@ import 'package:decimal/intl.dart';
 import 'package:intl/intl.dart';
 
 import 'currency.dart';
+import 'settlement.dart';
 
 final _formatters = <int, DecimalFormatter>{};
 
@@ -16,6 +17,14 @@ DecimalFormatter _formatter(int decimals) => _formatters.putIfAbsent(
     NumberFormat.decimalPatternDigits(locale: 'en_US', decimalDigits: decimals),
   ),
 );
+
+/// 잔액 표기: 받을 돈은 앞에 `+`를 붙인다 (`+405.33위안` · `-300,000원`).
+String formatSignedMoney(int amount, Currency currency) =>
+    '${amount > 0 ? '+' : ''}${formatMoney(amount, currency)}';
+
+/// 환산한 원화를 10원 단위로 반올림해 대략으로: `약 1,049,260원`
+String formatApproxWon(Decimal won) =>
+    '약 ${formatMoney(roundTo10Won(won), Currency.krw)}';
 
 /// 최소 단위 정수 금액을 화면 표기로 바꾼다.
 ///

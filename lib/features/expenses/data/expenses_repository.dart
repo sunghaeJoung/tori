@@ -9,18 +9,24 @@ class ExpensesRepository {
 
   final SupabaseClient _client;
 
-  /// 여행의 지출(부담액 포함). 최근 날짜 순, 같은 날이면 나중에 넣은 것 먼저.
-  Future<List<Expense>> list(String tripId) async {
-    final rows = await _client
-        .from('expenses')
+  /// 여행의 지출(부담액 포함)과 지출 버전. 최근 날짜 순, 같은 날이면 나중에 넣은 것 먼저.
+  /// 여행 행에 지출을 붙여 한 번에 조회해서, 목록과 버전이 같은 시점의 값이다.
+  Future<TripExpenses> list(String tripId) async {
+    final row = await _client
+        .from('trips')
         .select(
-          'id, title, amount, currency, paid_by, category, spent_at, '
-          'expense_splits(member_id, share_amount)',
+          'expenses_changed_at, '
+          'expenses(id, title, amount, currency, paid_by, category, spent_at, '
+          'expense_splits(member_id, share_amount))',
         )
-        .eq('trip_id', tripId)
-        .order('spent_at', ascending: false)
-        .order('created_at', ascending: false);
-    return rows.map(Expense.fromJson).toList();
+        .eq('id', tripId)
+        .order('spent_at', referencedTable: 'expenses', ascending: false)
+        .order('created_at', referencedTable: 'expenses', ascending: false)
+        .single();
+    return TripExpenses([
+      for (final e in row['expenses'] as List)
+        Expense.fromJson(e as Map<String, dynamic>),
+    ], version: row['expenses_changed_at'] as String);
   }
 
   /// 지출을 저장하고 id를 돌려준다. [expenseId]가 있으면 수정.

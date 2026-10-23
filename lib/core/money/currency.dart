@@ -5,7 +5,7 @@ import 'package:decimal/decimal.dart';
 /// 금액은 항상 통화의 최소 단위 정수로 다룬다 (예: 128.50위안 → 12850).
 enum Currency {
   krw(code: 'KRW', decimals: 0, label: '원화', unit: '원'),
-  jpy(code: 'JPY', decimals: 0, label: '엔화', unit: '엔'),
+  jpy(code: 'JPY', decimals: 0, label: '엔화', unit: '엔', rateQuoteUnit: 100),
   cny(code: 'CNY', decimals: 2, label: '위안화', unit: '위안'),
   usd(code: 'USD', decimals: 2, label: '달러', unit: '달러');
 
@@ -14,6 +14,7 @@ enum Currency {
     required this.decimals,
     required this.label,
     required this.unit,
+    this.rateQuoteUnit = 1,
   });
 
   /// DB에 저장하는 ISO 4217 코드.
@@ -24,6 +25,9 @@ enum Currency {
 
   /// 화면에 보이는 이름 (원화·엔화·위안화·달러).
   final String label;
+
+  /// 환율을 보여주고 입력받는 단위. 엔화는 한국에서 익숙한 100엔 기준 (`100엔 = 912.40원`).
+  final int rateQuoteUnit;
 
   /// 짧은 단위 이름 (원·엔·위안·달러). 지출 통화 고르기 등에 쓴다.
   final String unit;

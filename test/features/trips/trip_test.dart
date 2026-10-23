@@ -37,7 +37,6 @@ void main() {
       endDate: DateTime(2026, 11, 9),
       currency: Currency.cny,
       inviteCode: 'ABCD2345',
-      settled: false,
       members: const [
         Member(id: 'm1', name: '민지', userId: 'u1'),
         Member(id: 'm2', name: '수아'),
@@ -45,5 +44,33 @@ void main() {
     );
     expect(detail.memberOf('u1')?.name, '민지');
     expect(detail.memberOf('someone-else'), isNull);
+  });
+
+  test('정산한 뒤 지출이 바뀌면 다시 정산할 상태', () {
+    Map<String, dynamic> row({required String changed}) => {
+      'id': 't1',
+      'name': '상하이',
+      'start_date': '2026-11-06',
+      'end_date': '2026-11-09',
+      'local_currency': 'CNY',
+      'invite_code': 'ABCD2345',
+      'settled_at': '2026-11-09T10:00:00+00:00',
+      'settle_rate': 192.35,
+      'settle_rate_date': '2026-11-09',
+      'expenses_changed_at': changed,
+      'members': <dynamic>[],
+    };
+    final settled = TripDetail.fromJson(
+      row(changed: '2026-11-09T09:00:00+00:00'),
+    );
+    expect(settled.settled, isTrue);
+    expect(settled.settledRate?.label, '1위안 = 192.35원');
+
+    final stale = TripDetail.fromJson(
+      row(changed: '2026-11-09T11:00:00+00:00'),
+    );
+    expect(stale.settled, isFalse);
+    expect(stale.settlementStale, isTrue);
+    expect(stale.settledRate, isNotNull);
   });
 }

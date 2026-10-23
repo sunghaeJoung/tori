@@ -8,9 +8,11 @@ import '../features/invite/ui/join_screen.dart';
 import '../features/onboarding/providers.dart';
 import '../features/onboarding/ui/onboarding_screen.dart';
 import '../features/settlement/ui/rate_screen.dart';
+import '../features/settlement/ui/settled_screen.dart';
 import '../features/trips/ui/create_trip_screen.dart';
 import '../features/trips/ui/home_screen.dart';
 import '../features/trips/ui/trip_screen.dart';
+import '../features/trips/ui/trip_tab.dart';
 import '../shared/widgets/empty_state.dart';
 
 /// 앱의 경로. 화면에서 이동할 때는 문자열 대신 이걸 쓴다.
@@ -18,12 +20,18 @@ abstract final class Routes {
   static const onboarding = '/onboarding';
   static const home = '/';
   static const newTrip = '/trips/new';
-  static String trip(String tripId) => '/trips/$tripId';
+
+  /// 여행방. [tab]을 주면 그 탭을 열어서 보여준다.
+  static String trip(String tripId, {TripTab tab = TripTab.expenses}) =>
+      tab == TripTab.expenses
+      ? '/trips/$tripId'
+      : '/trips/$tripId?tab=${tab.name}';
   static String invite(String tripId) => '/trips/$tripId/invite';
   static String newExpense(String tripId) => '/trips/$tripId/expenses/new';
   static String expense(String tripId, String expenseId) =>
       '/trips/$tripId/expenses/$expenseId';
   static String rate(String tripId) => '/trips/$tripId/rate';
+  static String settled(String tripId) => '/trips/$tripId/done';
   static String join(String code) => '/join/$code';
 
   /// 친구에게 보내는 초대 링크(전체 주소). 지금 열린 사이트 주소를 기준으로 만든다.
@@ -54,7 +62,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/trips/:tripId',
-        builder: (context, state) => TripScreen(tripId: _tripId(state)),
+        builder: (context, state) => TripScreen(
+          tripId: _tripId(state),
+          initialTab:
+              TripTab.values.asNameMap()[state.uri.queryParameters['tab']] ??
+              TripTab.expenses,
+        ),
         routes: [
           GoRoute(
             path: 'invite',
@@ -75,6 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'rate',
             builder: (context, state) => RateScreen(tripId: _tripId(state)),
+          ),
+          GoRoute(
+            path: 'done',
+            builder: (context, state) => SettledScreen(tripId: _tripId(state)),
           ),
         ],
       ),
