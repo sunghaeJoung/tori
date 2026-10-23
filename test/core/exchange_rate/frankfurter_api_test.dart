@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tori/core/exchange_rate/exchange_rate.dart';
 import 'package:tori/core/exchange_rate/frankfurter_api.dart';
 import 'package:tori/core/money/currency.dart';
 

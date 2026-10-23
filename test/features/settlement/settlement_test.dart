@@ -1,6 +1,8 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tori/core/exchange_rate/exchange_rate.dart';
 import 'package:tori/core/money/currency.dart';
+import 'package:tori/core/money/split.dart';
 import 'package:tori/features/expenses/data/expense.dart';
 import 'package:tori/features/settlement/data/settlement.dart';
 
@@ -26,10 +28,8 @@ void main() {
     shares: shares,
   );
 
-  Map<String, int> even(int amount, List<String> ids) {
-    final share = amount ~/ ids.length, rest = amount % ids.length;
-    return {for (final (i, id) in ids.indexed) id: share + (i < rest ? 1 : 0)};
-  }
+  Map<String, int> even(int amount, List<String> ids) =>
+      splitEvenly(amount, ids);
 
   final expenses = [
     e('항공권', 1200000, Currency.krw, s, even(1200000, all)),
@@ -40,11 +40,15 @@ void main() {
     e('밀크티', 4500, Currency.cny, s, even(4500, all)),
     e('크루즈', 48000, Currency.cny, m, even(48000, all)),
   ];
-  final rate = Decimal.parse('192.35');
+  final rate = ExchangeRate(
+    currency: Currency.cny,
+    krwPerUnit: Decimal.parse('192.35'),
+    date: DateTime(2026, 11, 9),
+  );
 
   test('3-5 예시: 여행 지출로 정산하면 568,010 / 325,550 / 49,060원', () {
-    final balances = TripBalances(all, expenses);
-    expect(balances.plan(Currency.cny, rate), [
+    final balances = TripBalances(all, expenses, local: Currency.cny);
+    expect(balances.plan(rate), [
       (from: j, to: s, amountKrw: 568010),
       (from: m, to: h, amountKrw: 325550),
       (from: m, to: s, amountKrw: 49060),
@@ -52,22 +56,18 @@ void main() {
   });
 
   test('통화별 총 지출과 원화 환산 총액', () {
-    final balances = TripBalances(all, expenses);
-    expect(balances.totals, {Currency.krw: 1200000, Currency.cny: 615950});
+    final balances = TripBalances(all, expenses, local: Currency.cny);
+    // 현지 통화(위안)가 먼저
+    expect(balances.totals.keys, [Currency.cny, Currency.krw]);
+    expect(balances.totals, {Currency.cny: 615950, Currency.krw: 1200000});
     // 6,159.50위안 × 192.35 + 1,200,000원
-    expect(
-      balances.totalInKrw(Currency.cny, rate),
-      Decimal.parse('2384779.825'),
-    );
-    expect(
-      balances.inKrw(Currency.cny, rate)[j],
-      Decimal.parse('-568014.7195'),
-    );
+    expect(balances.totalInKrw(rate), Decimal.parse('2384779.825'));
+    expect(balances.inKrw(rate)[j], Decimal.parse('-568014.7195'));
   });
 
   test('지출이 없으면 비어 있고 보낼 돈도 없다', () {
-    final balances = TripBalances(all, const []);
+    final balances = TripBalances(all, const [], local: Currency.cny);
     expect(balances.isEmpty, isTrue);
-    expect(balances.plan(Currency.cny, rate), isEmpty);
+    expect(balances.plan(rate), isEmpty);
   });
 }

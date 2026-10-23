@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tori/app/router.dart';
-import 'package:tori/core/exchange_rate/frankfurter_api.dart';
+import 'package:tori/core/exchange_rate/exchange_rate.dart';
 import 'package:tori/core/money/currency.dart';
 import 'package:tori/core/money/settlement.dart';
 import 'package:tori/core/supabase/supabase_client.dart';
@@ -61,19 +61,26 @@ class FakeTripsRepository implements TripsRepository {
   ExchangeRate? settledRate;
   bool settlementStale = false;
 
-  final _listeners = <void Function()>[];
+  /// 지출 버전 (trips.expenses_changed_at). 바꾸면 그 전 버전으로 한 정산 확정은 거절된다.
+  String expensesVersion = '2026-11-07T00:00:00+00:00';
+
+  final _listeners = <void Function({required bool expenses})>[];
 
   /// 지금 실시간 구독 중인 곳 수.
   int get watching => _listeners.length;
 
-  void emitChange() {
+  /// 친구가 여행을 바꾼 것처럼 실시간 알림을 보낸다. 송금 완료 체크만이면 `expenses: false`.
+  void emitChange({bool expenses = true}) {
     for (final listener in List.of(_listeners)) {
-      listener();
+      listener(expenses: expenses);
     }
   }
 
   @override
-  void Function() watchChanges(String tripId, void Function() onChange) {
+  void Function() watchChanges(
+    String tripId,
+    void Function({required bool expenses}) onChange,
+  ) {
     _listeners.add(onChange);
     return () => _listeners.remove(onChange);
   }
@@ -117,6 +124,7 @@ class FakeTripsRepository implements TripsRepository {
       inviteCode: 'TR7K2QAB',
       settledRate: settledRate,
       settlementStale: settlementStale,
+      expensesVersion: expensesVersion,
       members: [
         for (final (id, name) in sampleMembers)
           Member(id: id, name: name, userId: id == 'm1' ? fakeUser.id : null),
@@ -186,8 +194,12 @@ class FakeExpensesRepository implements ExpensesRepository {
   /// 값이 있으면 모든 요청이 이 에러로 실패한다.
   Object? failWith;
 
+  /// 지출 목록을 불러온 횟수.
+  var listCalls = 0;
+
   @override
   Future<List<Expense>> list(String tripId) async {
+    listCalls++;
     if (failWith != null) throw failWith!;
     return List.of(expenses);
   }
@@ -303,11 +315,16 @@ class FakeSettlementRepository implements SettlementRepository {
 
   @override
   Future<void> confirm(
-    String tripId,
-    ExchangeRate rate,
-    List<Transfer> plan,
-  ) async {
+    String tripId, {
+    required String expensesVersion,
+    required ExchangeRate rate,
+    required List<Transfer> transfers,
+  }) async {
     if (failWith != null) throw failWith!;
+    if (expensesVersion != trips.expensesVersion) {
+      throw const ExpensesChangedDuringSettlement();
+    }
+    final plan = transfers;
     confirmed.add((rate, plan));
     trips
       ..settledRate = rate
@@ -392,6 +409,8 @@ Future<void> pumpApp(
 }) async {
   final repo = repository ?? FakeTripsRepository();
   final container = ProviderContainer(
+    // 실패한 provider를 저절로 다시 시도하지 않는다 (테스트가 끝난 뒤 타이머가 남지 않게)
+    retry: (_, _) => null,
     overrides: [
       nicknameProvider.overrideWith(() => FakeNickname(nickname)),
       authUserProvider.overrideWith((ref) => fakeUser),

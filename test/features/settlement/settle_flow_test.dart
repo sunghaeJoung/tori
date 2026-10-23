@@ -2,8 +2,9 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tori/app/router.dart';
-import 'package:tori/core/exchange_rate/frankfurter_api.dart';
+import 'package:tori/core/exchange_rate/exchange_rate.dart';
 import 'package:tori/core/money/currency.dart';
+import 'package:tori/features/trips/ui/trip_tab.dart';
 
 import '../../helpers/fake_app.dart';
 
@@ -84,6 +85,41 @@ void main() {
     expect(find.textContaining('3명이 함께 쓴'), findsOneWidget);
   });
 
+  testWidgets('계산하는 사이 지출이 바뀌면 확정하지 않고 다시 확인하게 한다', (tester) async {
+    final fakes = await openTrip(tester);
+    await tapButton<FilledButton>(tester, '정산 시작하기');
+
+    fakes.trips.expensesVersion = '2026-11-07T01:00:00+00:00'; // 친구가 지출을 고침
+    await tapButton<FilledButton>(tester, '이 환율로 정산하기');
+    expect(fakes.settlements.confirmed, isEmpty);
+    expect(find.text('그사이 지출이 바뀌었어요. 총액을 다시 확인하고 정산해 주세요'), findsOneWidget);
+
+    // 새 지출 버전으로 다시 확정할 수 있다
+    await tapButton<FilledButton>(tester, '이 환율로 정산하기');
+    expect(fakes.settlements.confirmed, hasLength(1));
+  });
+
+  testWidgets('송금 완료 체크 알림만으로는 지출을 다시 불러오지 않는다', (tester) async {
+    usePhoneSize(tester);
+    final trips = FakeTripsRepository();
+    final expenses = FakeExpensesRepository(expenses: sampleExpenses());
+    await pumpApp(
+      tester,
+      location: Routes.trip('t1'),
+      repository: trips,
+      expenses: expenses,
+    );
+    final before = expenses.listCalls;
+
+    trips.emitChange(expenses: false);
+    await tester.pumpAndSettle();
+    expect(expenses.listCalls, before);
+
+    trips.emitChange();
+    await tester.pumpAndSettle();
+    expect(expenses.listCalls, before + 1);
+  });
+
   testWidgets('환율을 못 불러오면 직접 입력해서 정산', (tester) async {
     final fakes = await openTrip(tester, rateError: Exception('막힘'));
     await tapButton<FilledButton>(tester, '정산 시작하기');
@@ -144,8 +180,14 @@ void main() {
     expect(plan, hasLength(2));
   });
 
-  test('직접 입력 환율 단위: 엔화는 100엔', () {
-    expect(ExchangeRate.inputUnitOf(Currency.jpy), 100);
-    expect(ExchangeRate.inputUnitOf(Currency.cny), 1);
+  test('직접 입력한 엔화 환율은 100엔 기준', () {
+    final rate = ExchangeRate.quoted(
+      Currency.jpy,
+      Decimal.parse('912.4'),
+      DateTime(2026, 11, 9, 15),
+    );
+    expect(rate.krwPerUnit, Decimal.parse('9.124'));
+    expect(rate.date, DateTime(2026, 11, 9));
+    expect(rate.label, '100엔 = 912.40원');
   });
 }

@@ -43,7 +43,7 @@ trips 1 ──── N settlements
 | settle_rate_date     | date              | 환율 기준일                                      |
 | settled_at           | timestamptz       | 정산을 확정한 시각                               |
 | expenses_changed_at  | timestamptz       | 지출이 마지막으로 바뀐 시각 (트리거가 갱신)      |
-| changed_at           | timestamptz       | 송금 완료 체크가 바뀐 시각 (실시간 알림용)       |
+| settlements_changed_at | timestamptz     | 송금 완료 체크가 바뀐 시각 (실시간 알림용)       |
 | invite_code          | text unique       | 8자리 초대 코드 (암호학적 난수)                  |
 | created_by           | uuid → auth.users |                                                  |
 | created_at           | timestamptz       |                                                  |
@@ -101,7 +101,9 @@ trips 1 ──── N settlements
 | done_at                | timestamptz, null 허용 | 송금 완료 체크 시각         |
 
 - 정산을 확정할 때 계산 결과로 다시 만든다. "정산 다시 하기"를 하면 지우고 새로 만든다
-- `confirm_settlement(여행, 환율, 기준일, 보내는 멤버들, 받는 멤버들, 금액들)` RPC로만 만든다. 송금 목록은 앱의 `settle()`이 계산한다 (정산 알고리즘은 `core/money` 한 곳에만 둔다). 원화 여행은 환율 1
+- `confirm_settlement(여행, 계산에 쓴 지출 버전, 환율, 기준일, 보내는 멤버들, 받는 멤버들, 금액들)` RPC로만 만든다. 원화 여행은 환율 1
+  - 송금 목록은 앱의 `settle()`이 계산한다 (정산 알고리즘은 `core/money` 한 곳에만 둔다). DB는 금액 > 0 · 10원 단위 · 같은 여행 멤버만 막고, 잔액과 맞는지는 검사하지 않는다 (초대 코드를 아는 친구끼리의 신뢰)
+  - 지출 버전(`expenses_changed_at`)이 그사이 바뀌었으면 거절한다. 옛 지출로 계산한 송금 목록이 확정되지 않게
 - 정산 뒤 지출이 바뀌면(`expenses_changed_at > settled_at`) 앱이 "지출이 바뀌었어요. 정산을 다시 해주세요"로 보여준다
 
 ### 저장 규칙
@@ -124,7 +126,7 @@ trips 1 ──── N settlements
 - 실시간 반영: 지출이 바뀌면 트리거가 `trips.expenses_changed_at`을 갱신하고, 앱은 여행 행 하나만 Supabase Realtime으로 구독해 바뀌면 지출을 다시 불러온다
   - Realtime의 delete 이벤트는 필터·RLS가 적용되지 않아 지출 테이블을 직접 구독하지 않는다
   - 정산 뒤 지출이 바뀌었는지(`settled_at`과 비교) 판단하는 데도 쓴다
-  - 정산 확정(`settled_at` 등)이나 송금 완료 체크(`changed_at`)도 여행 행을 바꾸므로 같은 구독으로 받는다. 앱은 알림이 오면 여행 정보·지출·송금 목록을 다시 불러온다
+  - 정산 확정(`settled_at` 등)이나 송금 완료 체크(`settlements_changed_at`)도 여행 행을 바꾸므로 같은 구독으로 받는다. 앱은 알림이 오면 여행 정보·송금 목록을 다시 불러오고, `expenses_changed_at`이 바뀌었을 때만 지출 목록도 다시 불러온다
 - 환율은 Frankfurter(`api.frankfurter.dev`, 유럽중앙은행 고시, 키 없음·HTTPS·CORS)에서 받는다. 못 받으면 직접 입력해서 정산한다
 - 마이그레이션은 `supabase/migrations/`에 두고 `supabase db push`로 적용한다. RLS 점검은 `dart run tool/rls_check.dart`
 
