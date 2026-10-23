@@ -45,8 +45,8 @@ class SettlementRepository {
         },
       );
     } on PostgrestException catch (e) {
-      // '그사이 지출이 바뀌었다'(serialization_failure)
-      if (e.code == '40001') throw const ExpensesChangedDuringSettlement();
+      // '그사이 지출이 바뀌었다' (confirm_settlement의 앱 전용 오류 코드)
+      if (e.code == 'TR409') throw const ExpensesChangedDuringSettlement();
       rethrow;
     }
   }
