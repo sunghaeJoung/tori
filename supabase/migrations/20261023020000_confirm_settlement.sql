@@ -9,8 +9,24 @@
 --   앱은 여행 행 하나만 구독한다 (20261023010000 참고).
 
 -- ─────────────────────────────────────────────
--- 실시간 알림용 변경 시각
+-- 변경 시각
 -- ─────────────────────────────────────────────
+
+-- 지출 변경 시각을 트랜잭션 시작 시각(now) 대신 실제 시각(clock_timestamp)으로.
+-- 정산 확정과 지출 저장이 동시에 일어나도, 정산 뒤에 커밋된 지출이 settled_at보다 늦게 찍혀
+-- "다시 정산"으로 보이게 한다.
+create or replace function public.touch_trip_expenses()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.trips set expenses_changed_at = clock_timestamp()
+  where id = case when tg_op = 'DELETE' then old.trip_id else new.trip_id end;
+  return null;
+end;
+$$;
 
 alter table public.trips
   add column settlements_changed_at timestamptz not null default now();
@@ -65,10 +81,15 @@ begin
   if not public.is_trip_member(p_trip_id) then
     raise exception '여행 멤버가 아니다' using errcode = 'insufficient_privilege';
   end if;
+  if p_rate is null or p_rate <= 0 or p_rate_date is null then
+    raise exception '환율과 기준일이 필요하다' using errcode = 'check_violation';
+  end if;
   if cardinality(p_from) <> cardinality(p_to)
      or cardinality(p_from) <> cardinality(p_amounts) then
     raise exception '송금 목록의 길이가 맞지 않다' using errcode = 'check_violation';
   end if;
+  -- 여행 행을 잠가서, 확인하는 동안 지출 저장(트리거가 이 행을 고침)이 끼어들지 못하게 한다
+  perform 1 from public.trips where id = p_trip_id for update;
   if not exists (
     select 1 from public.trips
     where id = p_trip_id and expenses_changed_at = p_expenses_changed_at
@@ -85,7 +106,7 @@ begin
   update public.trips set
     settle_rate = p_rate,
     settle_rate_date = p_rate_date,
-    settled_at = now()
+    settled_at = clock_timestamp()
   where id = p_trip_id;
 
   delete from public.settlements where trip_id = p_trip_id;

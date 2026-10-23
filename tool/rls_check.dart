@@ -356,6 +356,16 @@ Future<void> main(List<String> args) async {
     ),
   );
   check(
+    '환율 없이는 정산할 수 없다',
+    deniedWith(
+      await a.rpc('confirm_settlement', {
+        ...await settlement(id),
+        'p_rate': null,
+      }),
+      '환율과 기준일',
+    ),
+  );
+  check(
     '정산 열(환율·확정 시각)은 직접 못 바꾼다',
     deniedWith(
       await a.patch('trips', 'id=eq.$id', {
