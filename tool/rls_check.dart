@@ -323,6 +323,89 @@ Future<void> main(List<String> args) async {
           await a.get('expense_splits', 'expense_id=eq.$expenseId'),
         ),
   );
+
+  // 정산 (confirm_settlement RPC)
+  await a.rpc('save_expense', expense(id, members)); // 민지가 680.00위안, 4명
+  // 1위안 = 192.35원: 수아·지훈·하린이 민지에게 32,700원씩 (170.00위안 × 192.35 = 32,699.5)
+  Map<String, Object?> settlement(String tripId, {int amount = 32700}) => {
+    'p_trip_id': tripId,
+    'p_rate': 192.35,
+    'p_rate_date': '2026-11-09',
+    'p_from': [for (final m in members.skip(1)) m['id']],
+    'p_to': [for (final _ in members.skip(1)) members.first['id']],
+    'p_amounts': [for (final _ in members.skip(1)) amount],
+  };
+  check(
+    'C는 A의 여행을 정산할 수 없다',
+    deniedWith(await c.rpc('confirm_settlement', settlement(id)), '여행 멤버가 아니다'),
+  );
+  check(
+    '송금액은 10원 단위만',
+    !isOk(await a.rpc('confirm_settlement', settlement(id, amount: 32699))),
+  );
+  check(
+    '정산 열(환율·확정 시각)은 직접 못 바꾼다',
+    deniedWith(
+      await a.patch('trips', 'id=eq.$id', {
+        'settled_at': '2026-11-09T00:00:00Z',
+      }),
+      'permission denied',
+    ),
+  );
+  final confirmed = await b.rpc('confirm_settlement', settlement(id));
+  final settled = (await a.rows(
+    'trips',
+    'id=eq.$id&select=settle_rate,settled_at,expenses_changed_at,changed_at',
+  )).single;
+  final transfers = await a.rows('settlements', 'trip_id=eq.$id&select=*');
+  check(
+    'B(멤버)가 정산을 확정하면 환율·송금 3건이 저장된다',
+    isOk(confirmed) &&
+        settled['settle_rate'] == 192.35 &&
+        settled['settled_at'] != null &&
+        transfers.length == 3,
+  );
+  check(
+    'C에게 A 여행의 송금이 안 보이고 완료 체크도 못 한다',
+    isEmptyOrDenied(await c.get('settlements', 'trip_id=eq.$id')) &&
+        isEmptyOrDenied(
+          await c.patch('settlements', 'trip_id=eq.$id', {
+            'done_at': '2026-11-09T00:00:00Z',
+          }),
+        ),
+  );
+  final done = await b.patch('settlements', 'id=eq.${transfers.first['id']}', {
+    'done_at': DateTime.now().toUtc().toIso8601String(),
+  });
+  final afterDone = (await a.rows(
+    'trips',
+    'id=eq.$id&select=changed_at',
+  )).single;
+  check(
+    '송금 완료를 체크하면 여행의 changed_at이 갱신된다 (실시간 알림용)',
+    isOk(done) &&
+        DateTime.parse(afterDone['changed_at'] as String)
+            .isAfter(DateTime.parse(settled['changed_at'] as String)),
+  );
+  await a.rpc('save_expense', expense(id, members, amount: 100));
+  final stale = (await a.rows(
+    'trips',
+    'id=eq.$id&select=settled_at,expenses_changed_at',
+  )).single;
+  check(
+    '정산 뒤 지출이 바뀌면 expenses_changed_at > settled_at (다시 정산)',
+    DateTime.parse(stale['expenses_changed_at'] as String)
+        .isAfter(DateTime.parse(stale['settled_at'] as String)),
+  );
+  check(
+    '정산을 다시 하면 송금 목록을 새로 만든다',
+    isOk(await a.rpc('confirm_settlement', settlement(id))) &&
+        (await a.rows('settlements', 'trip_id=eq.$id&select=id')).length == 3 &&
+        (await a.rows(
+          'settlements',
+          'trip_id=eq.$id&done_at=not.is.null',
+        )).isEmpty,
+  );
   check(
     '초대 코드는 바꿀 수 없다',
     deniedWith(
