@@ -25,11 +25,18 @@ enum Currency {
   /// 화면에 보이는 이름 (원화·엔화·위안화·달러).
   final String label;
 
-  /// 금액 뒤에 붙이는 단위 (원·엔·위안). 달러는 금액 앞에 `$`를 붙여서 쓰지 않는다.
+  /// 짧은 단위 이름 (원·엔·위안·달러). 지출 통화 고르기 등에 쓴다.
   final String unit;
 
   /// 최소 단위 정수를 실제 금액으로 바꾼다 (12850 → 128.50).
   Decimal toMajor(int minor) => Decimal.fromInt(minor).shift(-decimals);
+
+  /// 실제 금액을 최소 단위 정수로 바꾼다 (128.5 → 12850). 남는 소수 자리는 버린다.
+  int toMinor(Decimal major) =>
+      major.shift(decimals).floor().toBigInt().toInt();
+
+  /// 숫자 표기에 단위를 붙인다: `128.50위안` · `$12.99`
+  String withUnit(String number) => this == usd ? '\$$number' : '$number$unit';
 
   static Currency fromCode(String code) => values.firstWhere(
     (c) => c.code == code,

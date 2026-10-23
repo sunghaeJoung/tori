@@ -21,9 +21,5 @@ String formatMoney(int amount, Currency currency) {
   );
   final number = formatter.format(currency.toMajor(amount.abs()));
   final sign = amount < 0 ? '-' : '';
-  return sign + withUnit(number, currency);
+  return sign + currency.withUnit(number);
 }
-
-/// 숫자 표기에 통화 단위를 붙인다: `128.50위안` · `$12.99`
-String withUnit(String number, Currency currency) =>
-    currency == Currency.usd ? '\$$number' : '$number${currency.unit}';
