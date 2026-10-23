@@ -12,18 +12,8 @@ import '../features/settlement/ui/settled_screen.dart';
 import '../features/trips/ui/create_trip_screen.dart';
 import '../features/trips/ui/home_screen.dart';
 import '../features/trips/ui/trip_screen.dart';
+import '../features/trips/ui/trip_tab.dart';
 import '../shared/widgets/empty_state.dart';
-
-/// 여행방의 탭. 주소의 `?tab=`으로 고를 수 있다 (예: 정산을 확정한 뒤 정산 탭으로).
-enum TripTab {
-  expenses('지출'),
-  balances('잔액'),
-  settle('정산');
-
-  const TripTab(this.label);
-
-  final String label;
-}
 
 /// 앱의 경로. 화면에서 이동할 때는 문자열 대신 이걸 쓴다.
 abstract final class Routes {

@@ -6,32 +6,64 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
-import '../../../core/exchange_rate/frankfurter_api.dart';
+import '../../../core/exchange_rate/exchange_rate.dart';
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
-import '../../../core/money/settlement.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/messages.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/bottom_actions.dart';
+import '../../../shared/widgets/tori_card.dart';
 import '../../trips/data/trip.dart';
 import '../../trips/providers.dart';
+import '../../trips/ui/trip_tab.dart';
 import '../data/settlement.dart';
 import '../providers.dart';
 
 /// 10 정산 환율 확인. 오늘 환율(또는 직접 입력한 환율)을 확인하고 정산을 확정한다.
 ///
 /// 원화 여행은 환율 없이 총액만 확인한다.
-class RateScreen extends ConsumerStatefulWidget {
+class RateScreen extends ConsumerWidget {
   const RateScreen({super.key, required this.tripId});
 
   final String tripId;
 
   @override
-  ConsumerState<RateScreen> createState() => _RateScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trip = ref.watch(tripDetailProvider(tripId));
+    final balances = ref.watch(balancesProvider(tripId));
+    return Scaffold(
+      appBar: AppBar(title: const Text('정산 환율 확인')),
+      body: switch ((trip.value, balances.value)) {
+        (final trip?, final balances?) => _RateForm(
+          trip: trip,
+          balances: balances,
+        ),
+        _ => AsyncView(
+          value: trip.hasError ? trip : balances,
+          onRetry: () => ref
+            ..invalidate(tripDetailProvider(tripId))
+            ..invalidate(balancesProvider(tripId)),
+          errorTitle: '정산할 지출을 불러오지 못했어요',
+          data: (_) => const SizedBox.shrink(),
+        ),
+      },
+    );
+  }
 }
 
-class _RateScreenState extends ConsumerState<RateScreen> {
+/// 환율 고르기(오늘 환율 · 직접 입력), 총액, 확정 버튼.
+class _RateForm extends ConsumerStatefulWidget {
+  const _RateForm({required this.trip, required this.balances});
+
+  final TripDetail trip;
+  final TripBalances balances;
+
+  @override
+  ConsumerState<_RateForm> createState() => _RateFormState();
+}
+
+class _RateFormState extends ConsumerState<_RateForm> {
   final _manualInput = TextEditingController();
 
   /// 환율 직접 입력칸을 열었는가.
@@ -44,83 +76,60 @@ class _RateScreenState extends ConsumerState<RateScreen> {
     super.dispose();
   }
 
-  void _close() => context.popOrGo(Routes.trip(widget.tripId));
+  void _close() => context.popOrGo(Routes.trip(widget.trip.id));
 
-  /// 직접 입력한 환율. 엔화는 100엔 기준으로 입력받는다. 올바르지 않으면 null.
-  ExchangeRate? _manualRate(Currency currency) {
-    final value = Decimal.tryParse(_manualInput.text.replaceAll(',', ''));
-    if (value == null || value <= Decimal.zero) return null;
-    final perUnit =
-        (value / Decimal.fromInt(ExchangeRate.inputUnitOf(currency))).toDecimal(
-          scaleOnInfinitePrecision: 10,
-        );
-    return ExchangeRate(
-      currency: currency,
-      krwPerUnit: perUnit,
-      date: DateUtils.dateOnly(ref.read(todayProvider)),
+  /// 직접 입력한 환율 (엔화는 100엔 기준). 올바르지 않으면 null.
+  ExchangeRate? _manualRate() {
+    final won = Decimal.tryParse(_manualInput.text.replaceAll(',', ''));
+    if (won == null || won <= Decimal.zero) return null;
+    return ExchangeRate.quoted(
+      widget.trip.currency,
+      won,
+      ref.read(todayProvider),
     );
   }
 
-  Future<void> _confirm(
-    TripDetail trip,
-    TripBalances balances,
-    ExchangeRate rate,
-  ) async {
+  Future<void> _confirm(ExchangeRate rate) async {
     if (_saving) return;
     setState(() => _saving = true);
+    final trip = widget.trip;
     try {
-      await ref.read(settlementActionsProvider).confirm(trip, balances, rate);
+      await ref
+          .read(settlementActionsProvider)
+          .confirm(trip, widget.balances, rate);
       if (mounted) context.go(Routes.trip(trip.id, tab: TripTab.settle));
     } catch (e) {
       debugPrint('정산 확정 실패: $e');
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showMessage('정산하지 못했어요. $retryHint');
+      ScaffoldMessenger.of(context).showMessage(
+        e is ExpensesChangedDuringSettlement
+            ? '그사이 지출이 바뀌었어요. 총액을 다시 확인하고 정산해 주세요'
+            : '정산하지 못했어요. $retryHint',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final trip = ref.watch(tripDetailProvider(widget.tripId));
-    final balances = ref.watch(balancesProvider(widget.tripId));
-    final local = trip.value?.currency;
-    final isWonTrip = local == Currency.krw;
-    final latest = local == null || isWonTrip
-        ? null
+    final local = widget.trip.currency;
+    final AsyncValue<ExchangeRate> latest = local == Currency.krw
+        ? AsyncData(ExchangeRate.won(ref.watch(todayProvider)))
         : ref.watch(latestRateProvider(local));
-    final ExchangeRate? rate = switch (local) {
-      null => null,
-      Currency.krw => wonRate(DateUtils.dateOnly(ref.watch(todayProvider))),
-      _ when _manual => _manualRate(local),
-      _ => latest?.value,
-    };
+    final rate = _manual ? _manualRate() : latest.value;
+    final isWonTrip = local == Currency.krw;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: '뒤로',
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: _saving ? null : _close,
-        ),
-        title: const Text('정산 환율 확인'),
-      ),
-      body: AsyncView(
-        value: trip,
-        onRetry: () => ref.invalidate(tripDetailProvider(widget.tripId)),
-        errorTitle: '여행을 불러오지 못했어요',
-        data: (trip) => AsyncView(
-          value: balances,
-          onRetry: () => ref.invalidate(balancesProvider(widget.tripId)),
-          errorTitle: '지출을 불러오지 못했어요',
-          data: (balances) => ListView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             children: [
               if (isWonTrip)
                 const _RateCard(title: '원화 여행', headline: '환율 없이 바로 정산해요')
               else ...[
-                _manual
-                    ? _manualCard(trip.currency)
-                    : _latestCard(latest!, trip.currency),
+                _manual ? _manualCard(local) : _latestCard(latest, local),
                 const SizedBox(height: 8),
                 _Hint(
                   _manual
@@ -136,7 +145,7 @@ class _RateScreenState extends ConsumerState<RateScreen> {
                 ),
               ],
               const SizedBox(height: 8),
-              _Totals(balances: balances, local: trip.currency, rate: rate),
+              _Totals(balances: widget.balances, rate: rate),
               const SizedBox(height: 16),
               const _Hint(
                 '확정하면 친구들 모두 이 환율로 정산 결과를 보게 돼요. '
@@ -145,25 +154,21 @@ class _RateScreenState extends ConsumerState<RateScreen> {
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: BottomActions(
-        children: [
-          FilledButton(
-            onPressed:
-                rate == null || _saving || !trip.hasValue || !balances.hasValue
-                ? null
-                : () =>
-                      _confirm(trip.requireValue, balances.requireValue, rate),
-            child: Text(
-              _saving ? '정산하는 중…' : (isWonTrip ? '정산하기' : '이 환율로 정산하기'),
+        BottomActions(
+          children: [
+            FilledButton(
+              onPressed: rate == null || _saving ? null : () => _confirm(rate),
+              child: Text(
+                _saving ? '정산하는 중…' : (isWonTrip ? '정산하기' : '이 환율로 정산하기'),
+              ),
             ),
-          ),
-          TextButton(
-            onPressed: _saving ? null : _close,
-            child: const Text('취소'),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: _saving ? null : _close,
+              child: const Text('취소'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -188,7 +193,6 @@ class _RateScreenState extends ConsumerState<RateScreen> {
   }
 
   Widget _manualCard(Currency currency) {
-    final unit = ExchangeRate.inputUnitOf(currency);
     return _RateCard(
       title: '직접 입력한 환율',
       headline: null,
@@ -202,7 +206,7 @@ class _RateScreenState extends ConsumerState<RateScreen> {
         onChanged: (_) => setState(() {}),
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         decoration: InputDecoration(
-          prefixText: '${currency.withUnit('$unit')} = ',
+          prefixText: '${currency.withUnit('${currency.rateQuoteUnit}')} = ',
           suffixText: '원',
           hintText: '예: 192.35',
         ),
@@ -268,22 +272,16 @@ class _RateCard extends StatelessWidget {
 
 /// 통화별 지출과 원화로 합친 정산 총액.
 class _Totals extends StatelessWidget {
-  const _Totals({
-    required this.balances,
-    required this.local,
-    required this.rate,
-  });
+  const _Totals({required this.balances, required this.rate});
 
   final TripBalances balances;
-  final Currency local;
   final ExchangeRate? rate;
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final rate = this.rate;
-    String approxWon(Decimal won) =>
-        '약 ${formatMoney(roundTo10Won(won), Currency.krw)}';
+    final isWonTrip = balances.local == Currency.krw;
 
     Widget row(String label, String? sub, String value, {bool total = false}) =>
         ConstrainedBox(
@@ -319,13 +317,8 @@ class _Totals extends StatelessWidget {
           ),
         );
 
-    return Container(
+    return ToriCard(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      decoration: BoxDecoration(
-        color: ToriColors.surface,
-        border: Border.all(color: ToriColors.cardBorder),
-        borderRadius: BorderRadius.circular(22),
-      ),
       child: Column(
         children: [
           for (final MapEntry(key: c, value: total)
@@ -333,29 +326,25 @@ class _Totals extends StatelessWidget {
             if (c == Currency.krw)
               row(
                 '원화 지출',
-                local == Currency.krw ? null : '환율 적용 안 함',
+                isWonTrip ? null : '환율 적용 안 함',
                 formatMoney(total, c),
               )
             else
               row(
                 '${c.unit} 지출',
                 formatMoney(total, c),
-                rate == null
-                    ? '-'
-                    : approxWon(c.toMajor(total) * rate.krwPerUnit),
+                rate == null ? '-' : formatApproxWon(rate.toKrw(total)),
               ),
             const Divider(height: 1),
           ],
-          row(
-            '정산할 총액',
-            null,
-            rate == null
-                ? '-'
-                : local == Currency.krw
-                ? formatMoney(balances.totals[Currency.krw] ?? 0, Currency.krw)
-                : approxWon(balances.totalInKrw(local, rate.krwPerUnit)),
-            total: true,
-          ),
+          row('정산할 총액', null, switch (rate) {
+            null => '-',
+            _ when isWonTrip => formatMoney(
+              balances.totals[Currency.krw] ?? 0,
+              Currency.krw,
+            ),
+            final rate => formatApproxWon(balances.totalInKrw(rate)),
+          }, total: true),
         ],
       ),
     );

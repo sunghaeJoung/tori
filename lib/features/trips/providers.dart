@@ -26,23 +26,31 @@ final tripDetailProvider = FutureProvider.autoDispose
       return ref.watch(tripsRepositoryProvider).tripDetail(tripId);
     });
 
-/// 친구들이 이 여행을 바꿀 때마다(지출, 정산, 송금 완료) 1씩 오르는 숫자 (Supabase Realtime).
+/// 친구들이 이 여행을 바꾼 횟수 (Supabase Realtime).
+/// - `all`: 무엇이든 바뀌면(지출, 정산, 송금 완료) 오른다
+/// - `expenses`: 지출이 바뀔 때만 오른다 (송금 완료 체크로 지출 목록까지 다시 불러오지 않게)
+///
 /// watch하는 provider는 바뀔 때마다 다시 불러온다. 아무도 watch하지 않으면 구독을 끝낸다.
 final tripChangesProvider = NotifierProvider.autoDispose
-    .family<TripChanges, int, String>(TripChanges.new);
+    .family<TripChanges, ({int all, int expenses}), String>(TripChanges.new);
 
-class TripChanges extends Notifier<int> {
+class TripChanges extends Notifier<({int all, int expenses})> {
   TripChanges(this.tripId);
 
   final String tripId;
 
   @override
-  int build() {
-    final stop = ref
-        .watch(tripsRepositoryProvider)
-        .watchChanges(tripId, () => state++);
+  ({int all, int expenses}) build() {
+    final stop = ref.watch(tripsRepositoryProvider).watchChanges(tripId, ({
+      required expenses,
+    }) {
+      state = (
+        all: state.all + 1,
+        expenses: state.expenses + (expenses ? 1 : 0),
+      );
+    });
     ref.onDispose(stop);
-    return 0;
+    return (all: 0, expenses: 0);
   }
 }
 

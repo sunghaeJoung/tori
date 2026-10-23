@@ -11,6 +11,7 @@ import '../../balances/ui/trip_summary_card.dart';
 import '../../expenses/ui/expense_list.dart';
 import '../../settlement/ui/settle_tab.dart';
 import '../providers.dart';
+import 'trip_tab.dart';
 
 /// 07·09·11 여행방. 총 지출·내 잔액 카드 아래 지출 · 잔액 · 정산 탭.
 class TripScreen extends ConsumerStatefulWidget {

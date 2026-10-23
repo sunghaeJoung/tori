@@ -5,13 +5,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
-import '../../../core/exchange_rate/frankfurter_api.dart';
+import '../../../core/exchange_rate/exchange_rate.dart';
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../../shared/dates.dart';
 import '../../../shared/messages.dart';
 import '../../../shared/widgets/async_view.dart';
+import '../../../shared/widgets/notice_box.dart';
 import '../../../shared/widgets/pill.dart';
+import '../../../shared/widgets/tori_card.dart';
 import '../../../shared/widgets/tori_mascot.dart';
 import '../../trips/data/trip.dart';
 import '../data/settlement.dart';
@@ -27,9 +29,7 @@ class SettleTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rate = trip.settledRate;
-    if (!trip.settled || rate == null) {
-      return _NotSettled(trip: trip);
-    }
+    if (rate == null || trip.settlementStale) return _NotSettled(trip: trip);
     final transfers = ref.watch(transfersProvider(trip.id));
     return AsyncView(
       value: transfers,
@@ -56,29 +56,12 @@ class _NotSettled extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
         if (trip.settlementStale)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: ToriColors.payBackground,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Text(
-              '지출이 바뀌었어요. 정산을 다시 해주세요.',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: ToriColors.payText,
-              ),
-            ),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: NoticeBox.warning('지출이 바뀌었어요. 정산을 다시 해주세요.'),
           ),
-        Container(
+        ToriCard(
           padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
-          decoration: BoxDecoration(
-            color: ToriColors.surface,
-            border: Border.all(color: ToriColors.cardBorder),
-            borderRadius: BorderRadius.circular(22),
-          ),
           child: Column(
             spacing: 10,
             children: [
@@ -184,9 +167,7 @@ class _Transfers extends ConsumerWidget {
                 final id? when id == t.to => '내가 받을 돈',
                 _ => null,
               },
-              approx: trip.currency == Currency.krw
-                  ? null
-                  : _approxLocal(t.amountKrw, rate),
+              approx: rate.isWon ? null : _approxLocal(t.amountKrw, rate),
               onToggle: () => _toggle(context, ref, t),
             ),
         ],
@@ -201,8 +182,7 @@ class _Transfers extends ConsumerWidget {
         const SizedBox(height: 12),
         Text(
           [
-            if (trip.currency != Currency.krw)
-              '${rate.label} (${formatLongDate(rate.date)} 기준)',
+            if (!rate.isWon) '${rate.label} (${formatLongDate(rate.date)} 기준)',
             '송금 금액은 10원 단위로 반올림했어요',
           ].join('\n'),
           textAlign: TextAlign.center,
@@ -276,90 +256,83 @@ class _TransferCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Opacity(
       opacity: done ? 0.6 : 1,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: ToriColors.surface,
-          border: Border.all(color: ToriColors.cardBorder),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 14,
-          children: [
-            Row(
-              spacing: 6,
-              children: [
-                Flexible(
-                  child: Text(
-                    from,
-                    style: text.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.arrow_forward,
-                  size: 18,
-                  color: ToriColors.textSub,
-                ),
-                Flexible(
-                  child: Text(
-                    to,
-                    style: text.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                if (role != null) Pill(role!),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: [
-                Text(
-                  formatMoney(transfer.amountKrw, Currency.krw),
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-                if (approx != null) Text(approx!, style: text.bodySmall),
-              ],
-            ),
-            done
-                ? OutlinedButton(
-                    onPressed: onToggle,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      foregroundColor: ToriColors.accent,
-                      side: const BorderSide(color: ToriColors.accent),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('송금 완료됨'),
-                  )
-                : FilledButton(
-                    onPressed: onToggle,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: ToriCard(
+          padding: const EdgeInsets.all(18),
+          radius: 20,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 14,
+            children: [
+              Row(
+                spacing: 6,
+                children: [
+                  Flexible(
+                    child: Text(
+                      from,
+                      style: text.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: const Text('송금 완료'),
                   ),
-          ],
+                  const Icon(
+                    Icons.arrow_forward,
+                    size: 18,
+                    color: ToriColors.textSub,
+                  ),
+                  Flexible(
+                    child: Text(
+                      to,
+                      style: text.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (role != null) Pill(role!),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: [
+                  Text(
+                    formatMoney(transfer.amountKrw, Currency.krw),
+                    style: amountLargeStyle,
+                  ),
+                  if (approx != null) Text(approx!, style: text.bodySmall),
+                ],
+              ),
+              done
+                  ? OutlinedButton(
+                      onPressed: onToggle,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                        foregroundColor: ToriColors.accent,
+                        side: const BorderSide(color: ToriColors.accent),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('송금 완료됨'),
+                    )
+                  : FilledButton(
+                      onPressed: onToggle,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      child: const Text('송금 완료'),
+                    ),
+            ],
+          ),
         ),
       ),
     );

@@ -15,7 +15,7 @@ final expensesRepositoryProvider = Provider<ExpensesRepository>(
 /// 여행방을 떠나면 버려서, 다시 열 때 새로 불러온다.
 final expensesProvider = FutureProvider.autoDispose
     .family<List<Expense>, String>((ref, tripId) async {
-      ref.watch(tripChangesProvider(tripId));
+      ref.watch(tripChangesProvider(tripId).select((c) => c.expenses));
       await ref.watch(authUserProvider.future);
       return ref.watch(expensesRepositoryProvider).list(tripId);
     });

@@ -6,7 +6,6 @@ import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
-import '../../../core/money/settlement.dart';
 import '../../../shared/widgets/bottom_actions.dart';
 import '../../../shared/widgets/tori_mascot.dart';
 import '../../trips/providers.dart';
@@ -22,14 +21,17 @@ class SettledScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final trip = ref.watch(tripDetailProvider(tripId)).value;
     final balances = ref.watch(balancesProvider(tripId)).value;
-    final rate = trip?.settledRate;
     final text = Theme.of(context).textTheme;
-    final total = trip == null || balances == null || rate == null
-        ? null
-        : formatMoney(
-            roundTo10Won(balances.totalInKrw(trip.currency, rate.krwPerUnit)),
-            Currency.krw,
-          );
+    // `약 1,049,260원` (원화 여행은 정확한 금액)
+    final summary = switch ((trip, balances, trip?.settledRate)) {
+      (final trip?, final balances?, final rate?) => (
+        trip: trip,
+        total: rate.isWon
+            ? formatMoney(balances.totals[Currency.krw] ?? 0, Currency.krw)
+            : formatApproxWon(balances.totalInKrw(rate)),
+      ),
+      _ => null,
+    };
 
     return Scaffold(
       body: SafeArea(
@@ -54,7 +56,7 @@ class SettledScreen extends ConsumerWidget {
                   '정산 끝!',
                   style: text.headlineMedium?.copyWith(fontSize: 32),
                 ),
-                if (trip != null && total != null)
+                if (summary case (:final trip, :final total))
                   Text.rich(
                     TextSpan(
                       children: [
@@ -63,9 +65,7 @@ class SettledScreen extends ConsumerWidget {
                               '${trip.name}에서 ${trip.members.length}명이 함께 쓴\n',
                         ),
                         TextSpan(
-                          text: trip.currency == Currency.krw
-                              ? total
-                              : '약 $total',
+                          text: total,
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             color: ToriColors.text,
